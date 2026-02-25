@@ -1,0 +1,14 @@
+[package]
+name = "omah"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+tui = ["dep:omah_tui"]
+
+[dependencies]
+omah_lib = { path = "../omah_lib" }
+anyhow.workspace = true
+owo-colors.workspace = true
+clap.workspace = true
+omah_tui = { path = "../omah_tui", optional = true }

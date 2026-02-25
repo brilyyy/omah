@@ -1,0 +1,10 @@
+# Panggonan kanggo nyimpen backup (The Vault)
+vault_path = "~/.config/omah/vault"
+
+[[dots]]
+name = "Zsh Config"
+source = "~/.zshrc"
+
+[[dots]]
+name = "Neovim"
+source = "~/.config/nvim"
