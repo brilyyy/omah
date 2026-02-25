@@ -1,4 +1,4 @@
-# omah
+# 🏡 omah
 
 A dotfile manager written in Rust. Backs up and restores your configuration files to a centralized vault.
 
