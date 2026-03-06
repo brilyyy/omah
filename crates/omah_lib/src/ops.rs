@@ -13,6 +13,9 @@ pub struct DotStatus {
     pub backed_up: bool,
     /// Source is a symlink pointing at the vault entry.
     pub symlinked: bool,
+    pub missing_deps: Vec<String>,
+    /// Setup step install commands that are still pending.
+    pub pending_setup: Vec<String>,
 }
 
 fn expand_path(path: &str) -> Result<PathBuf> {
@@ -54,10 +57,14 @@ pub fn backup(config: &OmahConfig) -> Result<()> {
 
     for dot in &config.dots {
         let source = expand_path(&dot.source)?;
-        let dest = vault.join(&dot.name);
+        let filename = source
+            .file_name()
+            .ok_or_else(|| anyhow::anyhow!("Source has no filename: {}", source.display()))?;
+        let dest = vault.join(&dot.name).join(filename);
 
-        copy_recursive(&source, &dest)
-            .with_context(|| format!("Failed to backup '{}' from {}", dot.name, source.display()))?;
+        copy_recursive(&source, &dest).with_context(|| {
+            format!("Failed to backup '{}' from {}", dot.name, source.display())
+        })?;
 
         if dot.symlink.unwrap_or(false) {
             remove_path(&source)
@@ -75,7 +82,10 @@ pub fn restore(config: &OmahConfig) -> Result<()> {
 
     for dot in &config.dots {
         let source = expand_path(&dot.source)?;
-        let vault_entry = vault.join(&dot.name);
+        let filename = source
+            .file_name()
+            .ok_or_else(|| anyhow::anyhow!("Source has no filename: {}", source.display()))?;
+        let vault_entry = vault.join(&dot.name).join(filename);
 
         if !vault_entry.exists() {
             anyhow::bail!(
@@ -94,8 +104,9 @@ pub fn restore(config: &OmahConfig) -> Result<()> {
             std::os::unix::fs::symlink(&vault_entry, &source)
                 .with_context(|| format!("Failed to create symlink for '{}'", dot.name))?;
         } else {
-            copy_recursive(&vault_entry, &source)
-                .with_context(|| format!("Failed to restore '{}' to {}", dot.name, source.display()))?;
+            copy_recursive(&vault_entry, &source).with_context(|| {
+                format!("Failed to restore '{}' to {}", dot.name, source.display())
+            })?;
         }
     }
 
@@ -110,7 +121,10 @@ pub fn status(config: &OmahConfig) -> Result<Vec<DotStatus>> {
         .iter()
         .map(|dot| {
             let source = expand_path(&dot.source)?;
-            let vault_entry = vault.join(&dot.name);
+            let filename = source
+                .file_name()
+                .ok_or_else(|| anyhow::anyhow!("Source has no filename: {}", source.display()))?;
+            let vault_entry = vault.join(&dot.name).join(filename);
 
             let source_exists = source.exists() || source.is_symlink();
             let backed_up = vault_entry.exists();
@@ -125,6 +139,11 @@ pub fn status(config: &OmahConfig) -> Result<Vec<DotStatus>> {
                 source_exists,
                 backed_up,
                 symlinked,
+                missing_deps: crate::deps::missing_deps(dot),
+                pending_setup: crate::deps::pending_setup_steps(dot)
+                    .into_iter()
+                    .map(|s| s.install.clone())
+                    .collect(),
             })
         })
         .collect()
@@ -148,6 +167,8 @@ mod tests {
             name: name.to_string(),
             source: source.to_string(),
             symlink,
+            deps: None,
+            setup: None,
         }
     }
 
@@ -166,7 +187,7 @@ mod tests {
         );
         backup(&config).unwrap();
 
-        let vault_entry = vault_dir.path().join("Zsh");
+        let vault_entry = vault_dir.path().join("Zsh").join("zshrc");
         assert!(vault_entry.is_file());
         assert_eq!(
             fs::read_to_string(&vault_entry).unwrap(),
@@ -191,7 +212,7 @@ mod tests {
         );
         backup(&config).unwrap();
 
-        let vault_entry = vault_dir.path().join("Nvim");
+        let vault_entry = vault_dir.path().join("Nvim").join("nvim");
         assert!(vault_entry.is_dir());
         assert!(vault_entry.join("init.lua").is_file());
     }
@@ -211,7 +232,7 @@ mod tests {
         backup(&config).unwrap();
 
         assert!(vault.is_dir());
-        assert!(vault.join("File").is_file());
+        assert!(vault.join("File").join("file.txt").is_file());
     }
 
     #[test]
@@ -227,7 +248,7 @@ mod tests {
         );
         backup(&config).unwrap();
 
-        let vault_entry = vault_dir.path().join("Zsh");
+        let vault_entry = vault_dir.path().join("Zsh").join("zshrc");
         assert!(vault_entry.is_file());
         // source should now be a symlink pointing at the vault entry
         assert!(source.is_symlink());
@@ -250,7 +271,9 @@ mod tests {
     fn test_restore_file() {
         let src_dir = tempdir().unwrap();
         let vault_dir = tempdir().unwrap();
-        let vault_entry = vault_dir.path().join("Zsh");
+        let vault_name_dir = vault_dir.path().join("Zsh");
+        fs::create_dir_all(&vault_name_dir).unwrap();
+        let vault_entry = vault_name_dir.join("zshrc");
         fs::write(&vault_entry, "# restored zsh").unwrap();
         let dest = src_dir.path().join("zshrc");
 
@@ -268,8 +291,9 @@ mod tests {
     fn test_restore_directory() {
         let src_dir = tempdir().unwrap();
         let vault_dir = tempdir().unwrap();
-        let vault_entry = vault_dir.path().join("Nvim");
-        fs::create_dir(&vault_entry).unwrap();
+        let vault_name_dir = vault_dir.path().join("Nvim");
+        let vault_entry = vault_name_dir.join("nvim");
+        fs::create_dir_all(&vault_entry).unwrap();
         fs::write(vault_entry.join("init.lua"), "-- config").unwrap();
         let dest = src_dir.path().join("nvim");
 
@@ -287,7 +311,9 @@ mod tests {
     fn test_restore_with_symlink() {
         let src_dir = tempdir().unwrap();
         let vault_dir = tempdir().unwrap();
-        let vault_entry = vault_dir.path().join("Zsh");
+        let vault_name_dir = vault_dir.path().join("Zsh");
+        fs::create_dir_all(&vault_name_dir).unwrap();
+        let vault_entry = vault_name_dir.join("zshrc");
         fs::write(&vault_entry, "# symlinked zsh").unwrap();
         let dest = src_dir.path().join("zshrc");
 

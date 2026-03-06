@@ -19,6 +19,12 @@ pub fn run(config_path: &Path) -> Result<()> {
             ""
         };
         println!("  {:<20} {}  {}{}", s.name, s.source, backed_up, extra);
+        if !s.missing_deps.is_empty() {
+            println!("  {:<20} missing deps:  {}", "", s.missing_deps.join(", "));
+        }
+        for cmd in &s.pending_setup {
+            println!("  {:<20} pending setup: {}", "", cmd);
+        }
     }
 
     Ok(())

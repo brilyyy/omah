@@ -8,7 +8,11 @@ pub fn run(config_path: &Path) -> Result<()> {
     println!("Vault: {}\n", config.vault_path);
     for dot in &config.dots {
         let symlink_tag = if dot.symlink.unwrap_or(false) { " [symlink]" } else { "" };
-        println!("  {}{}  →  {}", dot.name, symlink_tag, dot.source);
+        let deps_tag = match &dot.deps {
+            Some(deps) if !deps.is_empty() => format!("   deps: {}", deps.join(", ")),
+            _ => String::new(),
+        };
+        println!("  {}{}  →  {}{}", dot.name, symlink_tag, dot.source, deps_tag);
     }
     Ok(())
 }

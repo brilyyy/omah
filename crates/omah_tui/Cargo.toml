@@ -4,8 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+omah_core = { path = "../omah_core" }
 ratatui = "0.30"
 crossterm = "0.29"
-omah_lib = { path = "../omah_lib" }
-omah_structs = { path = "../omah_structs" }
 anyhow.workspace = true

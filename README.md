@@ -14,20 +14,48 @@ vault_path = "~/Documents/OmahVault"
 [[dots]]
 name = "Zsh Config"
 source = "~/.zshrc"
+deps = ["zsh"]
 
 [[dots]]
 name = "Neovim"
 source = "~/.config/nvim"
 symlink = true
+deps = ["nvim", "git", "ripgrep"]
+setup = [
+  # skipped if ~/.local/share/nvim already exists
+  { check = "~/.local/share/nvim", install = "git clone --depth 1 https://github.com/AstroNvim/template ~/.config/nvim" }
+]
+
+[[dots]]
+name = "Custom"
+source = "~/.my-custom-rc"
+# no deps or setup = no requirements
 ```
+
+### Pre-restore flow
+
+When running `omah restore`, omah checks for missing deps and pending setup steps across all dotfiles. If anything is needed, it shows a numbered action list and asks once before running:
+
+```
+The following steps are required before restore:
+
+  [1]  install deps:    brew install nvim git ripgrep
+  [2]  setup  Neovim:  git clone --depth 1 https://github.com/AstroNvim/template ~/.config/nvim
+
+Run all? [y/N]
+```
+
+Each dotfile is stored at `vault/{name}/{filename}` — the original filename is preserved inside a named folder.
 
 ## Project Structure
 
 ```text
 crates/
 ├── omah_structs/   # Core data structures (OmahConfig, DotfileConfig)
-├── omah_lib/       # Config loading, path resolution
-└── omah_bin/       # CLI entry point
+├── omah_lib/       # Config loading, path resolution, ops, dep checking
+├── omah_core/      # Re-exports omah_lib and omah_structs as a single crate
+├── omah_bin/       # CLI entry point
+└── omah_tui/       # Optional TUI (feature = "tui")
 ```
 
 ## TODO
@@ -51,16 +79,25 @@ crates/
 - [x] Add error messages with context (file not found, permission denied, etc.)
 - [x] Add a `status` command showing which dotfiles are in sync vs. out of date
 - [x] Write unit tests for config loading and path resolution
-- [ ] Add CI (GitHub Actions)
+- [x] Add CI (GitHub Actions)
 
 ### Enhancements
 
 #### Vault
 
+- [x] Vault sub-path structure — each dotfile stored at `vault/{name}/{filename}` to preserve the original filename
 - [ ] Git integration — auto-commit vault changes after each backup with a timestamp message
 - [ ] Diff support — show what changed between source and vault before backing up
 - [ ] Dry-run mode (`--dry-run`) — preview backup/restore operations without touching the filesystem
 - [ ] Selective backup — back up a single dotfile by name instead of all at once
+
+#### Dependencies
+
+- [x] `deps` field on `[[dots]]` — declare required tools per dotfile
+- [x] `status` shows missing deps per dotfile
+- [x] `restore` collects all missing deps + pending setup steps, shows a single numbered action list, and runs them all with one prompt
+- [x] `setup` field on `[[dots]]` — arbitrary pre-restore shell commands with optional `check` path (skipped if path exists)
+- [x] `status` shows missing deps and pending setup steps per dotfile
 
 #### Config
 
@@ -81,5 +118,6 @@ crates/
 
 ```sh
 cargo build
-cargo run
+cargo build --features tui   # include the optional TUI
+cargo run -- <subcommand>    # e.g. cargo run -- status
 ```
