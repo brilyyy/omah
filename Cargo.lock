@@ -518,6 +518,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "glob"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
+
+[[package]]
 name = "hashbrown"
 version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -824,10 +830,11 @@ dependencies = [
 
 [[package]]
 name = "omah"
-version = "1.0.0"
+version = "1.3.0"
 dependencies = [
  "anyhow",
  "clap",
+ "expand-tilde",
  "omah_lib",
  "omah_tui",
  "owo-colors",
@@ -835,7 +842,7 @@ dependencies = [
 
 [[package]]
 name = "omah_core"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "omah_lib",
  "omah_structs",
@@ -843,10 +850,11 @@ dependencies = [
 
 [[package]]
 name = "omah_lib"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "expand-tilde",
+ "glob",
  "omah_structs",
  "tempfile",
  "toml",
@@ -855,7 +863,7 @@ dependencies = [
 
 [[package]]
 name = "omah_structs"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -863,12 +871,13 @@ dependencies = [
 
 [[package]]
 name = "omah_tui"
-version = "0.1.0"
+version = "0.4.0"
 dependencies = [
  "anyhow",
  "crossterm",
  "omah_core",
  "ratatui",
+ "toml_edit",
 ]
 
 [[package]]
@@ -1553,11 +1562,17 @@ dependencies = [
  "indexmap",
  "serde_core",
  "serde_spanned",
- "toml_datetime",
+ "toml_datetime 0.7.5+spec-1.1.0",
  "toml_parser",
  "toml_writer",
  "winnow",
 ]
+
+[[package]]
+name = "toml_datetime"
+version = "0.6.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22cddaf88f4fbc13c51aebbf5f8eceb5c7c5a9da2ac40a13519eb5b0a0e8f11c"
 
 [[package]]
 name = "toml_datetime"
@@ -1569,6 +1584,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "toml_edit"
+version = "0.22.27"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41fe8c660ae4257887cf66394862d21dbca4a6ddd26f04a3560410406a2f819a"
+dependencies = [
+ "indexmap",
+ "toml_datetime 0.6.11",
+ "toml_write",
+ "winnow",
+]
+
+[[package]]
 name = "toml_parser"
 version = "1.0.6+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1576,6 +1603,12 @@ checksum = "a3198b4b0a8e11f09dd03e133c0280504d0801269e9afa46362ffde1cbeebf44"
 dependencies = [
  "winnow",
 ]
+
+[[package]]
+name = "toml_write"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d99f8c9a7727884afe522e9bd5edbfc91a3312b36a77b5fb8926e4c31a41801"
 
 [[package]]
 name = "toml_writer"
@@ -1892,6 +1925,9 @@ name = "winnow"
 version = "0.7.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5a5364e9d77fcdeeaa6062ced926ee3381faa2ee02d3eb83a5c27a8825540829"
+dependencies = [
+ "memchr",
+]
 
 [[package]]
 name = "winsafe"

@@ -18,13 +18,22 @@ pub enum Commands {
     /// Initialize config directory and scaffold default config
     Init,
     /// Back up all dotfiles to the vault
-    Backup,
+    Backup {
+        /// Skip the git auto-commit even if `git = true` in config
+        #[arg(long)]
+        no_git: bool,
+        /// Ignore exclude patterns from config
+        #[arg(long)]
+        no_exclude: bool,
+    },
     /// Restore all dotfiles from the vault
     Restore,
     /// Show sync status of all dotfiles
     Status,
     /// List all configured dotfiles
     List,
+    /// Show what has changed between source and vault
+    Diff,
     /// Launch the TUI dashboard
     #[cfg(feature = "tui")]
     Tui,

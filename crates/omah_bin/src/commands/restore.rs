@@ -5,7 +5,7 @@ use std::path::Path;
 use anyhow::Result;
 use omah_lib::{
     config::load_toml_config,
-    deps::{detect_package_manager, install_command, missing_deps, pending_setup_steps},
+    deps::{install_command, missing_deps, pending_setup_steps, resolve_pkg_manager},
     ops::restore,
 };
 
@@ -39,11 +39,12 @@ pub fn run(config_path: &Path) -> Result<()> {
     // Each entry is (label, command_string)
     let mut actions: Vec<(String, String)> = Vec::new();
 
-    let pm = detect_package_manager();
+    // Explicit config value takes priority; falls back to auto-detection
+    let pm = resolve_pkg_manager(config.pkg_manager.as_deref());
 
     if !all_missing.is_empty() {
         match pm {
-            Some(pm) => {
+            Some(ref pm) => {
                 let cmd = install_command(pm, &all_missing);
                 actions.push(("install deps".to_string(), cmd));
             }

@@ -28,6 +28,15 @@ pub fn detect_package_manager() -> Option<&'static str> {
         .map(|v| v as _)
 }
 
+/// Resolve the effective package manager from a config value.
+/// `None` or `"auto"` → auto-detect; any other value is used as-is.
+pub fn resolve_pkg_manager(configured: Option<&str>) -> Option<String> {
+    match configured {
+        None | Some("auto") | Some("") => detect_package_manager().map(|s| s.to_string()),
+        Some(pm) => Some(pm.to_string()),
+    }
+}
+
 /// Returns setup steps that are pending (check path absent or no check).
 pub fn pending_setup_steps(dot: &DotfileConfig) -> Vec<&SetupStep> {
     dot.setup.as_deref().unwrap_or(&[])

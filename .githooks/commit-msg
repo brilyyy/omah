@@ -1,0 +1,38 @@
+#!/usr/bin/env sh
+#
+# commit-msg — enforce Conventional Commits format
+# https://www.conventionalcommits.org/
+#
+# Valid format:  <type>[optional scope]: <description>
+#
+# Examples:
+#   feat(tui): add settings screen
+#   fix: correct vault path expansion
+#   docs: update README with new flags
+#   chore(deps): bump ratatui to 0.30
+
+MSG=$(cat "$1")
+
+# Strip the first line (ignore body / trailers)
+SUBJECT=$(echo "$MSG" | head -1)
+
+PATTERN="^(feat|fix|hotfix|docs|chore|refactor|test|style|ci|perf|build)(\(.+\))?: .+"
+
+if ! echo "$SUBJECT" | grep -qE "$PATTERN"; then
+    printf "\n  ✗  Invalid commit message.\n\n"
+    printf "  Format:  <type>[scope]: <description>\n"
+    printf "  Example: feat(tui): add settings screen\n\n"
+    printf "  Allowed types:\n"
+    printf "    feat      new feature\n"
+    printf "    fix       bug fix\n"
+    printf "    hotfix    urgent production fix\n"
+    printf "    docs      documentation only\n"
+    printf "    chore     maintenance, dependencies\n"
+    printf "    refactor  code restructuring\n"
+    printf "    test      adding or updating tests\n"
+    printf "    style     formatting, whitespace\n"
+    printf "    ci        CI/CD configuration\n"
+    printf "    perf      performance improvement\n"
+    printf "    build     build system or tooling\n\n"
+    exit 1
+fi
