@@ -331,6 +331,89 @@ Patterns follow standard glob syntax (e.g. `*.log`, `.git`, `node_modules`). The
 
 ---
 
+## Development
+
+### Setup
+
+```sh
+git clone <repo>
+cd omah
+make hooks   # activate commit-msg hook (enforces Conventional Commits)
+```
+
+### Common tasks
+
+| Command | Description |
+| --- | --- |
+| `make check` | Fast compile check including TUI feature |
+| `make test` | Run all workspace tests |
+| `make lint` | Run Clippy (warnings as errors) |
+| `make fmt` | Auto-format all code |
+| `make build` | Build release binary with TUI |
+| `make build-cli` | Build release binary without TUI |
+| `make install` | Build + copy binary to `/usr/local/bin/omah` |
+| `make clean` | Remove build artifacts |
+| `bacon` | Watch mode: re-runs `cargo check` on save |
+| `bacon test` | Watch mode: re-runs tests on save |
+
+### Commit messages
+
+Commits must follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+```
+<type>[optional scope]: <description>
+```
+
+Allowed types: `feat`, `fix`, `hotfix`, `docs`, `chore`, `refactor`, `test`, `style`, `ci`, `perf`, `build`
+
+```sh
+git commit -m "feat: add shell completion generation"
+git commit -m "fix(backup): skip unreadable symlink targets"
+git commit -m "docs: update TUI keybindings table"
+```
+
+The `commit-msg` hook validates this automatically after `make hooks`.
+
+### CI
+
+Every push to `master`/`main` and every pull request runs two jobs in parallel:
+
+| Job | What it does |
+| --- | --- |
+| `test` | `cargo test --workspace --locked` |
+| `build-check` | `cargo build --workspace --features tui --locked` |
+
+Both must pass before a release is created.
+
+### Releasing
+
+**Automatically** — bump the version in `crates/omah_bin/Cargo.toml` and push to `master`:
+
+```sh
+# 1. edit crates/omah_bin/Cargo.toml  →  version = "1.4.0"
+git add crates/omah_bin/Cargo.toml
+git commit -m "chore: bump version to 1.4.0"
+git push origin master
+```
+
+GitHub Actions detects that `v1.4.0` doesn't exist yet, builds for all three platforms, and publishes a GitHub Release with auto-generated notes. No manual tagging required.
+
+**Manually** — push a `v*` tag directly to trigger the release workflow:
+
+```sh
+make tag   # reads version from Cargo.toml, creates tag, pushes it
+```
+
+#### Release targets
+
+| Platform | Binary |
+| --- | --- |
+| Linux x86_64 (musl, static) | `omah-v{version}-linux-x86_64.tar.gz` |
+| macOS Apple Silicon | `omah-v{version}-macos-aarch64.tar.gz` |
+| macOS Intel | `omah-v{version}-macos-x86_64.tar.gz` |
+
+---
+
 ## Project structure
 
 ```text

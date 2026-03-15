@@ -51,6 +51,15 @@ uninstall:
 	rm -f $(INSTALL)
 	@echo "Removed $(INSTALL)"
 
+# ── Release ────────────────────────────────────────────────────────────────
+
+## Create and push a git tag from the version in crates/omah_bin/Cargo.toml
+tag:
+	@VERSION=$$(grep -m1 '^version' crates/omah_bin/Cargo.toml | sed 's/.*"\(.*\)".*/\1/'); \
+	echo "Tagging v$$VERSION ..."; \
+	git tag "v$$VERSION" && git push origin "v$$VERSION"; \
+	echo "Pushed tag v$$VERSION → triggers release workflow"
+
 # ── Hooks ──────────────────────────────────────────────────────────────────
 
 ## Configure git to use hooks from .githooks/
