@@ -1,0 +1,30 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "vite:build": {
+      "dependsOn": ["^vite:build"],
+      "outputs": ["dist/**"]
+    },
+    "vite:dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "tauri:build": {
+      "dependsOn": ["^tauri:build"],
+      "outputs": ["src-tauri/target/release/**"]
+    },
+    "tauri:dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

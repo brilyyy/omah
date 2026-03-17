@@ -1,0 +1,13 @@
+{
+  "name": "omah-monorepo",
+  "private": true,
+  "workspaces": ["apps/*"],
+  "scripts": {
+    "desktop": "turbo run tauri:dev --filter=omah-desktop",
+    "desktop:build": "turbo run tauri:build --filter=omah-desktop"
+  },
+  "devDependencies": {
+    "turbo": "^2.8.17"
+  },
+  "packageManager": "bun@1.3.10"
+}

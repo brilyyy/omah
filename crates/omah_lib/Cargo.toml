@@ -1,11 +1,13 @@
 [package]
 name = "omah_lib"
-version = "0.4.0"
+version = "1.0.0"
 edition = "2024"
 
 [dependencies]
 anyhow.workspace = true
+serde.workspace = true
 toml.workspace = true
+toml_edit.workspace = true
 omah_structs = { path = "../omah_structs" }
 expand-tilde = "0.6.1"
 which = "7"

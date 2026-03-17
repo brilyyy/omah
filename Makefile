@@ -1,4 +1,4 @@
-.PHONY: all build build-cli test lint fmt fmt-check check install uninstall clean hooks
+.PHONY: all build build-cli test lint fmt fmt-check check install uninstall clean hooks desktop desktop-build
 
 BIN        := target/release/omah
 INSTALL    := /usr/local/bin/omah
@@ -66,6 +66,16 @@ tag:
 hooks:
 	git config core.hooksPath .githooks
 	@echo "Git hooks enabled (core.hooksPath = .githooks)"
+
+# ── Desktop (Tauri) ────────────────────────────────────────────────────────
+
+## Run the Tauri desktop app in development mode
+desktop:
+	bun run desktop
+
+## Build the Tauri desktop app for release
+desktop-build:
+	bun run desktop:build
 
 # ── Clean ──────────────────────────────────────────────────────────────────
 

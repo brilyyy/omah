@@ -182,14 +182,16 @@ Lists all configured dotfiles with their source paths and symlink flag.
 
 ## TUI dashboard
 
-Build and run with the `tui` feature:
+Build with the `tui` feature — calling `omah` with no arguments launches the dashboard automatically:
 
 ```sh
 cargo build --release --features tui
-omah tui
-# or with a custom config:
-omah --config ~/work/omah.toml tui
+omah                              # launches TUI (default when built with --features tui)
+omah tui                          # explicit — same result
+omah --config ~/work/omah.toml tui  # custom config path
 ```
+
+Without the `tui` feature, `omah` with no arguments prints the banner and help text.
 
 ### Splash screen
 

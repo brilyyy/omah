@@ -57,12 +57,20 @@ fn print_banner() {
 fn main() -> anyhow::Result<()> {
     use clap::CommandFactory;
 
-    // No subcommand: show banner then help.
+    // No subcommand: launch TUI when available, otherwise show banner + help.
     if std::env::args_os().len() == 1 {
-        print_banner();
-        let _ = Cli::command().print_help();
-        println!();
-        return Ok(());
+        #[cfg(feature = "tui")]
+        {
+            let config_path = omah_lib::config::get_default_config_path()?;
+            return omah_tui::run(&config_path);
+        }
+        #[cfg(not(feature = "tui"))]
+        {
+            print_banner();
+            let _ = Cli::command().print_help();
+            println!();
+            return Ok(());
+        }
     }
 
     let cli = Cli::parse();
