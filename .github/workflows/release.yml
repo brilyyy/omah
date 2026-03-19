@@ -45,7 +45,7 @@ jobs:
         run: cargo test --workspace --locked
 
   build-check:
-    name: Build Check (TUI)
+    name: Build Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -64,8 +64,8 @@ jobs:
             ${{ runner.os }}-cargo-build-check-
             ${{ runner.os }}-cargo-
 
-      - name: Build with TUI feature
-        run: cargo build --workspace --features tui --locked
+      - name: Build check
+        run: cargo build --workspace --locked
 
   # ── CLI binaries ────────────────────────────────────────────────────────────
 
@@ -130,7 +130,7 @@ jobs:
             ${{ runner.os }}-cargo-release-
 
       - name: Build release binary
-        run: cargo build --bin omah --features tui --target ${{ matrix.target }} --release --locked
+        run: cargo build --bin omah --target ${{ matrix.target }} --release --locked
 
       - name: Strip binary (Unix)
         if: matrix.archive_ext == 'tar.gz'

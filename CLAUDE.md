@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```sh
 # Build
 cargo build
-cargo build --features tui          # include the optional TUI feature
+cargo build --release
 
 # Run
 cargo run -- <subcommand>           # e.g. cargo run -- init
@@ -30,11 +30,13 @@ bacon clippy-all                    # watch with clippy on all targets (also bou
 
 ## Architecture
 
-This is a Cargo workspace with four crates under `crates/`:
+This is a Cargo workspace with three crates under `crates/` and a Tauri desktop app:
 
 ```
 omah_structs  →  omah_lib  →  omah_bin (binary: omah)
-                          →  omah_tui  (optional, feature = "tui")
+                          →  omah_core (re-exports for desktop)
+
+apps/desktop  →  Tauri v2 desktop app
 ```
 
 **`omah_structs`** — pure data types, no logic. Defines `OmahConfig` (top-level config with `vault_path` and a `dots` array) and `DotfileConfig` (per-dotfile entry with `name`, `source`, optional `symlink`). Both derive `Serialize`/`Deserialize`.
@@ -45,9 +47,9 @@ omah_structs  →  omah_lib  →  omah_bin (binary: omah)
 - `ops` — filesystem operations: `backup` (copies source → vault, then optionally replaces source with a symlink), `restore` (copies vault → source or re-creates symlink), and `status` (returns `Vec<DotStatus>` describing sync state per dotfile).
 - `constants` — `DEFAULT_CONFIG_DIR`, `DEFAULT_CONFIG_FILE`, `DEFAULT_VAULT_PATH`.
 
-**`omah_bin`** — thin CLI layer using `clap`. `cli.rs` defines the `Cli` struct and `Commands` enum (`init`, `backup`, `restore`, `status`, `list`; `tui` gated on `#[cfg(feature = "tui")]`). Each command lives in its own file under `commands/` and delegates immediately to `omah_lib`.
+**`omah_bin`** — thin CLI layer using `clap`. `cli.rs` defines the `Cli` struct and `Commands` enum (`init`, `backup`, `restore`, `status`, `list`, `diff`). Each command lives in its own file under `commands/` and delegates immediately to `omah_lib`.
 
-**`omah_tui`** — stub crate using `ratatui` + `crossterm`; the `run()` function is a `todo!()` placeholder.
+**`apps/desktop`** — Tauri v2 desktop GUI. Frontend uses React + TanStack Router/Query + shadcn/ui. Backend (`src-tauri/`) exposes `omah_core` via Tauri commands with streaming terminal support.
 
 ## Config file
 
@@ -68,4 +70,4 @@ symlink = true   # backup moves source into vault and replaces it with a symlink
 
 ## Releasing
 
-Tags matching `v*` trigger the CI release workflow, which builds for `linux-x86_64` (musl), `macos-aarch64`, and `macos-x86_64` with `--features tui --release`, then publishes a GitHub Release with auto-generated notes.
+Tags matching `v*` trigger the CI release workflow, which builds CLI binaries for `linux-x86_64` (musl), `macos-aarch64`, and `macos-x86_64`, and desktop bundles (`.dmg` for macOS, `.AppImage` for Linux), then publishes a GitHub Release with auto-generated notes.
