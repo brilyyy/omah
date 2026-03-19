@@ -40,6 +40,7 @@ omah_structs  →  omah_lib  →  omah_bin (binary: omah)
 **`omah_structs`** — pure data types, no logic. Defines `OmahConfig` (top-level config with `vault_path` and a `dots` array) and `DotfileConfig` (per-dotfile entry with `name`, `source`, optional `symlink`). Both derive `Serialize`/`Deserialize`.
 
 **`omah_lib`** — all business logic, split across three modules:
+
 - `config` — TOML loading (`load_toml_config`), default path resolution (`get_default_config_path` → `~/.config/omah/omah-config.toml`), and `init_setup` / `init_at` for scaffolding the config directory on first run.
 - `ops` — filesystem operations: `backup` (copies source → vault, then optionally replaces source with a symlink), `restore` (copies vault → source or re-creates symlink), and `status` (returns `Vec<DotStatus>` describing sync state per dotfile).
 - `constants` — `DEFAULT_CONFIG_DIR`, `DEFAULT_CONFIG_FILE`, `DEFAULT_VAULT_PATH`.

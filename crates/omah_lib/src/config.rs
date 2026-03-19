@@ -16,6 +16,85 @@ pub fn load_toml_config(path: &Path) -> Result<OmahConfig> {
     Ok(config)
 }
 
+pub fn save_toml_config(config: &OmahConfig, path: &Path) -> Result<()> {
+    use toml_edit::{Array, ArrayOfTables, Document, InlineTable, Item, Table, Value, value};
+
+    let mut doc = Document::new();
+
+    doc["vault_path"] = value(config.vault_path.clone());
+    if let Some(git) = config.git {
+        doc["git"] = value(git);
+    }
+    if let Some(os) = &config.os {
+        doc["os"] = value(os.clone());
+    }
+    if let Some(pm) = &config.pkg_manager {
+        doc["pkg_manager"] = value(pm.clone());
+    }
+
+    // Build [[dots]] — setup/deps/exclude are serialized as inline arrays so that
+    // they stay inside their [[dots]] block instead of becoming [[dots.setup]] etc.
+    let mut dots_array = ArrayOfTables::new();
+
+    for dot in &config.dots {
+        let mut tbl = Table::new();
+        tbl["name"] = value(dot.name.clone());
+        tbl["source"] = value(dot.source.clone());
+        if let Some(symlink) = dot.symlink {
+            tbl["symlink"] = value(symlink);
+        }
+
+        // deps — inline string array: deps = ["zsh", "nvim"]
+        if let Some(deps) = &dot.deps {
+            if !deps.is_empty() {
+                let mut arr = Array::new();
+                for dep in deps {
+                    arr.push(dep.as_str());
+                }
+                tbl["deps"] = Item::Value(Value::Array(arr));
+            }
+        }
+
+        // setup — inline array of inline tables: setup = [{install="...", check="..."}]
+        if let Some(steps) = &dot.setup {
+            if !steps.is_empty() {
+                let mut arr = Array::new();
+                for step in steps {
+                    let mut inline = InlineTable::new();
+                    inline.insert("install", step.install.clone().into());
+                    if let Some(check) = &step.check {
+                        if !check.is_empty() {
+                            inline.insert("check", check.clone().into());
+                        }
+                    }
+                    arr.push(Value::InlineTable(inline));
+                }
+                tbl["setup"] = Item::Value(Value::Array(arr));
+            }
+        }
+
+        // exclude — inline string array: exclude = ["*.log", ".git"]
+        if let Some(exclude) = &dot.exclude {
+            if !exclude.is_empty() {
+                let mut arr = Array::new();
+                for pat in exclude {
+                    arr.push(pat.as_str());
+                }
+                tbl["exclude"] = Item::Value(Value::Array(arr));
+            }
+        }
+
+        dots_array.push(tbl);
+    }
+
+    doc["dots"] = Item::ArrayOfTables(dots_array);
+
+    let content = doc.to_string();
+    fs::write(path, content)
+        .with_context(|| format!("Failed to write config file: {}", path.display()))?;
+    Ok(())
+}
+
 pub fn get_default_dir() -> Result<PathBuf> {
     DEFAULT_CONFIG_DIR
         .expand_tilde()
@@ -153,6 +232,54 @@ symlink = true
         assert!(config_path.is_file());
         let contents = fs::read_to_string(&config_path).unwrap();
         assert!(contents.contains("vault_path"));
+    }
+
+    #[test]
+    fn test_save_toml_config_setup_inline() {
+        // setup steps must be written as inline arrays inside [[dots]],
+        // NOT as a separate [[dots.setup]] array-of-tables.
+        use omah_structs::{DotfileConfig, SetupStep};
+
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+
+        let config = OmahConfig {
+            vault_path: "/tmp/vault".into(),
+            git: None,
+            os: None,
+            pkg_manager: None,
+            dots: vec![DotfileConfig {
+                name: "Neovim".into(),
+                source: "~/.config/nvim".into(),
+                symlink: None,
+                deps: Some(vec!["nvim".into()]),
+                setup: Some(vec![SetupStep {
+                    install: "brew install neovim".into(),
+                    check: Some("bin:nvim".into()),
+                }]),
+                exclude: None,
+            }],
+        };
+
+        save_toml_config(&config, &path).unwrap();
+        let content = fs::read_to_string(&path).unwrap();
+
+        // setup must be inline inside [[dots]], not a separate section
+        assert!(
+            !content.contains("[[dots.setup]]"),
+            "setup must not be serialized as [[dots.setup]]:\n{content}"
+        );
+        assert!(
+            content.contains("setup ="),
+            "setup must be an inline field:\n{content}"
+        );
+        // Verify round-trip
+        let loaded = load_toml_config(&path).unwrap();
+        assert_eq!(
+            loaded.dots[0].setup.as_ref().unwrap()[0].install,
+            "brew install neovim"
+        );
+        assert_eq!(loaded.dots[0].deps.as_ref().unwrap()[0], "nvim");
     }
 
     #[test]

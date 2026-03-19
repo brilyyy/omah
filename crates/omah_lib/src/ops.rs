@@ -8,6 +8,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[derive(serde::Serialize)]
 pub struct DotStatus {
     pub name: String,
     pub source: String,
@@ -22,7 +23,7 @@ pub struct DotStatus {
 
 // ── Diff types ─────────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
 pub enum ChangeKind {
     /// In source but not yet in vault — would be newly backed up.
     Added,
@@ -32,7 +33,7 @@ pub enum ChangeKind {
     Removed,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct FileChange {
     pub dot_name: String,
     /// Path relative to the dotfile root (e.g. `init.lua` inside `~/.config/nvim`).
@@ -104,16 +105,29 @@ pub fn backup(config: &OmahConfig) -> Result<()> {
         let dest = vault.join(&dot.name).join(filename);
         let excludes = dot.exclude.as_deref().unwrap_or(&[]);
 
-        copy_recursive(&source, &dest, excludes).with_context(|| {
-            format!("Failed to backup '{}' from {}", dot.name, source.display())
-        })?;
+        // If source is already a symlink pointing at dest, skip the copy.
+        // fs::copy follows the symlink, which means it opens dest for writing
+        // (truncating it to 0 bytes) before reading source — which now reads
+        // through the symlink from the just-emptied dest, silently zeroing the vault.
+        let already_symlinked_to_dest = source.is_symlink()
+            && fs::read_link(&source).map(|t| t == dest).unwrap_or(false);
 
-        if dot.symlink.unwrap_or(false) {
-            remove_path(&source)
-                .with_context(|| format!("Failed to remove source for '{}'", dot.name))?;
-            std::os::unix::fs::symlink(&dest, &source)
-                .with_context(|| format!("Failed to create symlink for '{}'", dot.name))?;
+        if !already_symlinked_to_dest {
+            copy_recursive(&source, &dest, excludes).with_context(|| {
+                format!("Failed to backup '{}' from {}", dot.name, source.display())
+            })?;
+
+            if dot.symlink.unwrap_or(false) {
+                remove_path(&source)
+                    .with_context(|| format!("Failed to remove source for '{}'", dot.name))?;
+                std::os::unix::fs::symlink(&dest, &source)
+                    .with_context(|| format!("Failed to create symlink for '{}'", dot.name))?;
+            }
         }
+    }
+
+    if config.git.unwrap_or(false) {
+        crate::git::auto_commit_vault(&vault).context("git auto-commit failed")?;
     }
 
     Ok(())
@@ -431,6 +445,29 @@ mod tests {
         assert!(vault_entry.is_file());
         assert!(source.is_symlink());
         assert_eq!(fs::read_link(&source).unwrap(), vault_entry);
+    }
+
+    #[test]
+    fn test_backup_symlink_twice_preserves_vault_content() {
+        // Regression: second backup when source is already a symlink to the vault
+        // was zeroing out the vault file (fs::copy truncated dest before reading
+        // source which pointed to the same file via the symlink).
+        let src_dir = tempdir().unwrap();
+        let vault_dir = tempdir().unwrap();
+        let source = src_dir.path().join("zshrc");
+        fs::write(&source, "# my zsh config").unwrap();
+
+        let config = make_config(
+            vault_dir.path().to_str().unwrap(),
+            vec![dot("Zsh", source.to_str().unwrap(), Some(true))],
+        );
+
+        backup(&config).unwrap(); // first backup: copies file, creates symlink
+        backup(&config).unwrap(); // second backup: must not zero out the vault
+
+        let vault_entry = vault_dir.path().join("Zsh").join("zshrc");
+        assert_eq!(fs::read_to_string(&vault_entry).unwrap(), "# my zsh config");
+        assert!(source.is_symlink());
     }
 
     #[test]

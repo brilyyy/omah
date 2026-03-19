@@ -21,10 +21,14 @@ pub fn auto_commit_vault(vault: &Path) -> Result<()> {
             .context("Failed to run `git init` in vault")?;
     }
 
-    Command::new("git")
+    let add = Command::new("git")
         .args(["-C", vault_str, "add", "-A"])
         .output()
         .context("Failed to run `git add -A`")?;
+    if !add.status.success() {
+        let stderr = String::from_utf8_lossy(&add.stderr);
+        anyhow::bail!("git add failed: {}", stderr.trim());
+    }
 
     // Check if there is anything staged
     let porcelain = Command::new("git")

@@ -182,14 +182,16 @@ Lists all configured dotfiles with their source paths and symlink flag.
 
 ## TUI dashboard
 
-Build and run with the `tui` feature:
+Build with the `tui` feature — calling `omah` with no arguments launches the dashboard automatically:
 
 ```sh
 cargo build --release --features tui
-omah tui
-# or with a custom config:
-omah --config ~/work/omah.toml tui
+omah                              # launches TUI (default when built with --features tui)
+omah tui                          # explicit — same result
+omah --config ~/work/omah.toml tui  # custom config path
 ```
+
+Without the `tui` feature, `omah` with no arguments prints the banner and help text.
 
 ### Splash screen
 
@@ -338,21 +340,23 @@ Patterns follow standard glob syntax (e.g. `*.log`, `.git`, `node_modules`). The
 ```sh
 git clone <repo>
 cd omah
-make hooks   # activate commit-msg hook (enforces Conventional Commits)
+bun run hooks   # activate commit-msg hook (enforces Conventional Commits)
 ```
 
 ### Common tasks
 
 | Command | Description |
 | --- | --- |
-| `make check` | Fast compile check including TUI feature |
-| `make test` | Run all workspace tests |
-| `make lint` | Run Clippy (warnings as errors) |
-| `make fmt` | Auto-format all code |
-| `make build` | Build release binary with TUI |
-| `make build-cli` | Build release binary without TUI |
-| `make install` | Build + copy binary to `/usr/local/bin/omah` |
-| `make clean` | Remove build artifacts |
+| `bun run check` | Fast compile check including TUI feature |
+| `bun run test` | Run all workspace tests |
+| `bun run lint` | Run Clippy (warnings as errors) |
+| `bun run fmt` | Auto-format all code |
+| `bun run build` | Build release binary with TUI |
+| `bun run build:cli` | Build release binary without TUI |
+| `bun run cli:install` | Build + copy binary to `/usr/local/bin/omah` |
+| `bun run clean` | Remove build artifacts |
+| `bun run desktop` | Run the Tauri desktop app in dev mode |
+| `bun run desktop:build` | Build the Tauri desktop app for release |
 | `bacon` | Watch mode: re-runs `cargo check` on save |
 | `bacon test` | Watch mode: re-runs tests on save |
 
@@ -372,7 +376,7 @@ git commit -m "fix(backup): skip unreadable symlink targets"
 git commit -m "docs: update TUI keybindings table"
 ```
 
-The `commit-msg` hook validates this automatically after `make hooks`.
+The `commit-msg` hook validates this automatically after `bun run hooks`.
 
 ### CI
 
@@ -401,7 +405,7 @@ GitHub Actions detects that `v1.4.0` doesn't exist yet, builds for all three pla
 **Manually** — push a `v*` tag directly to trigger the release workflow:
 
 ```sh
-make tag   # reads version from Cargo.toml, creates tag, pushes it
+bun run tag   # reads version from Cargo.toml, creates tag, pushes it
 ```
 
 #### Release targets
@@ -460,10 +464,33 @@ crates/
 - [x] Config saved with `toml_edit` — preserves comments and formatting
 - [x] Settings screen (`S`) — edit OS and package manager globally
 
+### Desktop app (Tauri)
+
+- [x] v1.0.0 — full visual interface with streaming terminal, batik theme
+- [x] Dotfile list with live sync status
+- [x] Backup / restore per dotfile or all at once
+- [x] Inline diff viewer
+- [x] Add / edit dotfile (name, source, symlink, deps, setup steps, exclude patterns)
+- [x] Setup step runner with streaming terminal output
+- [x] Symlink toggle in dotfile detail view
+- [x] Donation dialog
+- [ ] Prebuilt `.dmg` (macOS) and `.AppImage` (Linux) in GitHub Releases
+- [ ] Auto-update — notify and apply new releases in-app
+- [ ] Tray icon / menubar mode (macOS) — keep omah running in the background
+- [ ] Vault browser — explore backed-up files and their history
+- [ ] Onboarding wizard — guided first-run setup for new users
+- [ ] Drag-and-drop to add dotfiles from Finder / file manager
+- [ ] Stale backup notifications — alert when source has changed since last backup
+
 ### Enhancements
 
-- [ ] `--dry-run` flag — preview operations without touching the filesystem
-- [ ] Selective backup — back up a single dotfile by name
-- [ ] Multiple profiles — named profiles pointing to different vault paths
-- [ ] `omah watch` — monitor source paths and auto-backup on change
+- [ ] `--dry-run` flag — preview backup/restore operations without touching the filesystem
+- [ ] Multiple profiles — named profiles pointing to different vault paths (e.g. work vs personal)
+- [ ] `omah watch` — monitor source paths and auto-backup on change using filesystem events
 - [ ] Shell completion generation (bash, zsh, fish)
+- [ ] Encryption — optionally encrypt sensitive dotfiles (e.g. SSH keys, `.env` files) at rest in the vault
+- [ ] Remote vault — push/pull vault to a Git remote, S3 bucket, or rsync target for cross-machine sync
+- [ ] `omah import` — bootstrap config from an existing dotfile repository or bare vault directory
+- [ ] Config validation — catch invalid paths, missing binaries, and malformed globs before operations run
+- [ ] Windows support — native path handling and package manager detection (`winget`, `scoop`, `choco`)
+- [ ] Colored diff output in CLI — highlight added/modified/removed lines with ANSI colors

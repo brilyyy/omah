@@ -15,11 +15,36 @@ pub fn run(config_path: &Path, no_git: bool, no_exclude: bool) -> Result<()> {
         }
     }
 
-    // Warn before replacing sources with symlinks
+    // Warn before replacing sources with symlinks — but only for dots where the
+    // source is NOT already a symlink pointing at the vault entry (those are
+    // silently skipped by backup() anyway, no need to alarm the user).
+    let vault = config
+        .vault_path
+        .expand_tilde()
+        .map(|p| p.to_path_buf())
+        .map_err(|_| anyhow::anyhow!("Failed to expand vault path"))?;
+
     let symlink_dots: Vec<&str> = config
         .dots
         .iter()
-        .filter(|d| d.symlink.unwrap_or(false))
+        .filter(|d| {
+            if !d.symlink.unwrap_or(false) {
+                return false;
+            }
+            // Skip dots already correctly symlinked — backup() will no-op them.
+            let Ok(source) = d.source.expand_tilde().map(|p| p.to_path_buf()) else {
+                return true;
+            };
+            let Ok(filename) = source.file_name().ok_or(()) else {
+                return true;
+            };
+            let dest = vault.join(&d.name).join(filename);
+            let already = source.is_symlink()
+                && std::fs::read_link(&source)
+                    .map(|t| t == dest)
+                    .unwrap_or(false);
+            !already
+        })
         .map(|d| d.name.as_str())
         .collect();
 
@@ -43,12 +68,6 @@ pub fn run(config_path: &Path, no_git: bool, no_exclude: bool) -> Result<()> {
 
     // Git auto-commit if enabled and not suppressed
     if !no_git && config.git.unwrap_or(false) {
-        let vault = config
-            .vault_path
-            .expand_tilde()
-            .map(|p| p.to_path_buf())
-            .map_err(|_| anyhow::anyhow!("Failed to expand vault path"))?;
-
         // Copy config into vault so it's version-controlled alongside dotfiles
         let config_dest = vault.join(".omah-config.toml");
         if let Err(e) = std::fs::copy(config_path, &config_dest) {
