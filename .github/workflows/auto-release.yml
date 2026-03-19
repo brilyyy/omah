@@ -101,7 +101,7 @@ jobs:
             ${{ runner.os }}-cargo-auto-release-
 
       - name: Build release binary
-        run: cargo build --bin omah --features tui --target ${{ matrix.target }} --release --locked
+        run: cargo build --bin omah --target ${{ matrix.target }} --release --locked
 
       - name: Strip binary
         run: strip target/${{ matrix.target }}/release/${{ matrix.binary }}

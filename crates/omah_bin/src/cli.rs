@@ -34,7 +34,4 @@ pub enum Commands {
     List,
     /// Show what has changed between source and vault
     Diff,
-    /// Launch the TUI dashboard
-    #[cfg(feature = "tui")]
-    Tui,
 }

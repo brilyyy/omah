@@ -24,12 +24,7 @@ mv omah-* /usr/local/bin/omah
 Or build from source:
 
 ```sh
-# CLI only
 cargo build --release
-cp target/release/omah /usr/local/bin/omah
-
-# CLI + TUI dashboard
-cargo build --release --features tui
 cp target/release/omah /usr/local/bin/omah
 ```
 
@@ -180,159 +175,6 @@ Lists all configured dotfiles with their source paths and symlink flag.
 
 ---
 
-## TUI dashboard
-
-Build with the `tui` feature — calling `omah` with no arguments launches the dashboard automatically:
-
-```sh
-cargo build --release --features tui
-omah                              # launches TUI (default when built with --features tui)
-omah tui                          # explicit — same result
-omah --config ~/work/omah.toml tui  # custom config path
-```
-
-Without the `tui` feature, `omah` with no arguments prints the banner and help text.
-
-### Splash screen
-
-A brief animated splash is shown on launch. Any key skips it immediately.
-
-### List screen
-
-The main view shows all configured dotfiles with their current sync status.
-
-```text
-┌─ omah ─ vault: ~/Documents/OmahVault ─────────────────────────────────────┐
-│ Name                Source                    Status        Flags          │
-│ ────────────────────────────────────────────────────────────────────────── │
-│ ▶ Zsh               ~/.zshrc                  backed up                    │
-│   Neovim            ~/.config/nvim            backed up     symlink        │
-│   Custom            ~/.my-custom-rc           not backed up                │
-└────────────────────────────────────────────────────────────────────────────┘
- j/k: navigate  e: edit  b: backup  B: backup all  r: restore  R: restore all  n: new  q: quit
-```
-
-| Key | Action |
-| --- | --- |
-| `j` / `↓` | move down |
-| `k` / `↑` | move up |
-| `e` | open edit screen for selected dotfile |
-| `n` | open add-dotfile form |
-| `b` | backup selected dotfile |
-| `B` | backup all dotfiles |
-| `r` | restore selected dotfile (asks for confirmation) |
-| `R` | restore all dotfiles (asks for confirmation) |
-| `S` | open global settings (OS, package manager) |
-| `q` / `Esc` | quit |
-
-### Settings (`S`)
-
-Edit global config fields that apply to all dotfiles:
-
-```text
-┌─ omah — settings ──────────────────────────────────────────────────────────┐
-│  Global Settings                                                             │
-├─ Configuration ─────────────────────────────────────────────────────────────┤
-│ ▶ OS               auto                                                      │
-│                    values: auto | macos | linux                              │
-│   Package Manager  auto                                                      │
-│                    values: auto | brew | apt-get | pacman | dnf | zypper     │
-└─────────────────────────────────────────────────────────────────────────────┘
-  Tab: switch field   s: save   Esc: cancel
-```
-
-- `auto` removes the key from the config (falls back to runtime detection).
-- Setting an explicit value locks it regardless of what is installed on the system.
-
-| Key | Action |
-| --- | --- |
-| `Tab` / `Enter` | switch between OS and Package Manager fields |
-| type / `Backspace` | edit the active field |
-| `s` | save and return to list |
-| `Esc` | cancel |
-
-### Add dotfile (`n`)
-
-A modal form for quickly adding a new entry to the config:
-
-| Key | Action |
-| --- | --- |
-| `Tab` | next field |
-| `Shift+Tab` | previous field |
-| `Space` | toggle symlink (on the symlink field) |
-| `Enter` | advance to next field / save on last field |
-| `Esc` | cancel |
-
-### Edit dotfile (`e`)
-
-A full-screen editor for an existing dotfile entry. Changes are saved back to the config file using `toml_edit`, preserving all comments and formatting in the rest of the file.
-
-```text
-┌─ omah — edit ──────────────────────────────────────────────────────────────┐
-│  Editing: Neovim                                                            │
-├─ Fields ───────────────────────────────────────────────────────────────────┤
-│ ▶ Name    Neovim                                                            │
-│   Source  ~/.config/nvim                                                    │
-│   Symlink [x] replace source with symlink                                   │
-│   Deps    nvim git ripgrep                                                  │
-├─ Setup Steps — [a] add  [d] delete ────────────────────────────────────────┤
-│ ▶ check: ~/.local/share/nvim  →  git clone --depth 1 https://... nvim      │
-│   (no check)                  →  pip install pynvim                         │
-├─ Exclude Patterns — [a] add  [d] delete ───────────────────────────────────┤
-│   *.log                                                                     │
-│   .git                                                                      │
-└────────────────────────────────────────────────────────────────────────────┘
-  Tab: switch focus   j/k: navigate   s: save   Esc: cancel
-```
-
-**Fields section** (focus 0–3):
-
-| Key | Action |
-| --- | --- |
-| `Tab` / `Shift+Tab` | cycle between Name → Source → Symlink → Deps → Steps → Excludes |
-| type / `Backspace` | edit the active text field |
-| `Space` | toggle symlink (when Symlink field is focused) |
-| `Enter` | advance focus to next field |
-
-**Setup steps section** (focus 4, reached via `Tab`):
-
-| Key | Action |
-| --- | --- |
-| `j` / `↓` | select next step |
-| `k` / `↑` | select previous step |
-| `a` | open add-step form |
-| `d` | delete selected step |
-
-**Add-step form** (appears when pressing `a` in the steps section):
-
-| Key | Action |
-| --- | --- |
-| `Tab` / `Enter` | move from Check field to Install field |
-| `Enter` (on Install) | save the step |
-| `Esc` | cancel |
-
-The **Check path** field is optional. If filled in, the step is skipped during restore when that path already exists on disk.
-
-**Exclude patterns section** (focus 5, reached via `Tab`):
-
-| Key | Action |
-| --- | --- |
-| `j` / `↓` | select next pattern |
-| `k` / `↑` | select previous pattern |
-| `a` | open input to add a new glob pattern |
-| `d` | delete selected pattern |
-
-Patterns follow standard glob syntax (e.g. `*.log`, `.git`, `node_modules`). They are matched against filenames when copying a source directory.
-
-**Saving:**
-
-| Key | Action |
-| --- | --- |
-| `s` | save all changes to the config file |
-| `Esc` | cancel and return to the list without saving |
-
----
-
 ## Development
 
 ### Setup
@@ -347,12 +189,11 @@ bun run hooks   # activate commit-msg hook (enforces Conventional Commits)
 
 | Command | Description |
 | --- | --- |
-| `bun run check` | Fast compile check including TUI feature |
+| `bun run check` | Fast compile check |
 | `bun run test` | Run all workspace tests |
 | `bun run lint` | Run Clippy (warnings as errors) |
 | `bun run fmt` | Auto-format all code |
-| `bun run build` | Build release binary with TUI |
-| `bun run build:cli` | Build release binary without TUI |
+| `bun run build` | Build release binary |
 | `bun run cli:install` | Build + copy binary to `/usr/local/bin/omah` |
 | `bun run clean` | Remove build artifacts |
 | `bun run desktop` | Run the Tauri desktop app in dev mode |
@@ -364,7 +205,7 @@ bun run hooks   # activate commit-msg hook (enforces Conventional Commits)
 
 Commits must follow [Conventional Commits](https://www.conventionalcommits.org/):
 
-```
+```text
 <type>[optional scope]: <description>
 ```
 
@@ -373,7 +214,7 @@ Allowed types: `feat`, `fix`, `hotfix`, `docs`, `chore`, `refactor`, `test`, `st
 ```sh
 git commit -m "feat: add shell completion generation"
 git commit -m "fix(backup): skip unreadable symlink targets"
-git commit -m "docs: update TUI keybindings table"
+git commit -m "docs: update README installation section"
 ```
 
 The `commit-msg` hook validates this automatically after `bun run hooks`.
@@ -385,7 +226,7 @@ Every push to `master`/`main` and every pull request runs two jobs in parallel:
 | Job | What it does |
 | --- | --- |
 | `test` | `cargo test --workspace --locked` |
-| `build-check` | `cargo build --workspace --features tui --locked` |
+| `build-check` | `cargo build --workspace --locked` |
 
 Both must pass before a release is created.
 
@@ -410,11 +251,11 @@ bun run tag   # reads version from Cargo.toml, creates tag, pushes it
 
 #### Release targets
 
-| Platform | Binary |
-| --- | --- |
-| Linux x86_64 (musl, static) | `omah-v{version}-linux-x86_64.tar.gz` |
-| macOS Apple Silicon | `omah-v{version}-macos-aarch64.tar.gz` |
-| macOS Intel | `omah-v{version}-macos-x86_64.tar.gz` |
+| Platform | CLI binary | Desktop bundle |
+| --- | --- | --- |
+| Linux x86_64 (musl, static) | `omah-v{version}-linux-x86_64.tar.gz` | `omah_{version}_amd64.AppImage` |
+| macOS Apple Silicon | `omah-v{version}-macos-aarch64.tar.gz` | `omah_{version}_aarch64.dmg` |
+| macOS Intel | `omah-v{version}-macos-x86_64.tar.gz` | `omah_{version}_x64.dmg` |
 
 ---
 
@@ -425,8 +266,7 @@ crates/
 ├── omah_structs/   # Core data types (OmahConfig, DotfileConfig, SetupStep)
 ├── omah_lib/       # Business logic: config loading, backup, restore, status, diff, git
 ├── omah_core/      # Re-exports omah_lib + omah_structs as a single crate
-├── omah_bin/       # CLI entry point (clap)
-└── omah_tui/       # Optional TUI dashboard (feature = "tui", ratatui + crossterm)
+└── omah_bin/       # CLI entry point (clap)
 ```
 
 ---
@@ -452,17 +292,6 @@ crates/
 - [x] `--config` flag for custom config path
 - [x] `--no-git` / `--no-exclude` flags on `backup`
 - [x] Error messages with context
-
-### TUI (`--features tui`)
-
-- [x] Animated splash screen
-- [x] Dotfile list with live status indicators
-- [x] Backup selected / backup all
-- [x] Restore selected / restore all (with confirmation dialog)
-- [x] Add new dotfile (name, source, symlink)
-- [x] Edit existing dotfile (name, source, symlink, deps, setup steps, exclude patterns)
-- [x] Config saved with `toml_edit` — preserves comments and formatting
-- [x] Settings screen (`S`) — edit OS and package manager globally
 
 ### Desktop app (Tauri)
 
