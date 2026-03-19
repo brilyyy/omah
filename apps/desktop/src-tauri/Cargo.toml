@@ -26,3 +26,4 @@ omah_core = { path = "../../../crates/omah_core" }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tokio = { version = "1", features = ["process", "io-util", "sync"] }
+tauri-plugin-shell = "2"

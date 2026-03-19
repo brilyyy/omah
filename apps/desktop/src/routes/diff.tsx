@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { FileDiff, Loader2, Minus, Pencil, Plus, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ipc, type FileChange } from "@/lib/ipc";
+import { useDiff } from "@/hooks/use-diff";
+import { type FileChange } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/diff")({
@@ -10,15 +10,7 @@ export const Route = createFileRoute("/diff")({
 });
 
 function DiffView() {
-  const {
-    data: changes,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery({
-    queryKey: ["diff"],
-    queryFn: () => ipc.getDiff(),
-  });
+  const { data: changes, isLoading, error, refetch } = useDiff();
 
   const grouped = changes
     ? changes.reduce<Record<string, FileChange[]>>((acc, c) => {

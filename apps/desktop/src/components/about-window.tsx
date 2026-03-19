@@ -1,10 +1,16 @@
 import { useEffect, useRef } from "react";
-import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
 import { ipc } from "@/lib/ipc";
 import { ThemeProvider, useTheme } from "@/components/theme-provider";
 
 const qc = new QueryClient({
-  defaultOptions: { queries: { retry: 1, staleTime: Number.POSITIVE_INFINITY } },
+  defaultOptions: {
+    queries: { retry: 1, staleTime: Number.POSITIVE_INFINITY },
+  },
 });
 
 export default function AboutWindow() {
@@ -140,14 +146,21 @@ function useBatikAnimation(
           // Travelling diagonal shimmer wave
           const wave = 0.4 + 0.6 * Math.sin(t * 0.65 + col * 0.55 + row * 0.48);
           const baseAlpha = isDark ? 0.11 : 0.08;
-          const alpha = baseAlpha + wave * (isDark ? 0.14 : 0.10);
+          const alpha = baseAlpha + wave * (isDark ? 0.14 : 0.1);
 
           drawKawungCell(ctx, cx, cy, CELL, alpha, isDark);
         }
       }
 
       // ── 3. Warm ambient center glow ─────────────────────────────────────
-      const ambGlow = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, MED_R * 2.2);
+      const ambGlow = ctx.createRadialGradient(
+        W / 2,
+        H / 2,
+        0,
+        W / 2,
+        H / 2,
+        MED_R * 2.2,
+      );
       if (isDark) {
         ambGlow.addColorStop(0, "rgba(170, 105, 28, 0.28)");
         ambGlow.addColorStop(0.5, "rgba(130, 78, 18, 0.14)");
@@ -182,9 +195,7 @@ function useBatikAnimation(
           const cy = row * MED_CELL;
           const d = Math.sqrt(cx * cx + cy * cy);
           const fade = Math.max(0, 1 - d / MED_R);
-          const alpha = isDark
-            ? 0.15 + fade * 0.55
-            : 0.12 + fade * 0.45;
+          const alpha = isDark ? 0.15 + fade * 0.55 : 0.12 + fade * 0.45;
           if (alpha > 0.05) {
             drawKawungCell(ctx, cx, cy, MED_CELL, alpha, isDark);
           }
@@ -199,9 +210,19 @@ function useBatikAnimation(
       ctx.scale(1, 0.58);
 
       // Glowing halo just outside the medallion edge
-      const halo = ctx.createRadialGradient(0, 0, MED_R * 0.72, 0, 0, MED_R * 1.18);
+      const halo = ctx.createRadialGradient(
+        0,
+        0,
+        MED_R * 0.72,
+        0,
+        0,
+        MED_R * 1.18,
+      );
       halo.addColorStop(0, "transparent");
-      halo.addColorStop(0.55, isDark ? "rgba(200, 148, 45, 0.32)" : "rgba(130, 78, 18, 0.22)");
+      halo.addColorStop(
+        0.55,
+        isDark ? "rgba(200, 148, 45, 0.32)" : "rgba(130, 78, 18, 0.22)",
+      );
       halo.addColorStop(1, "transparent");
       ctx.fillStyle = halo;
       ctx.beginPath();
@@ -209,14 +230,18 @@ function useBatikAnimation(
       ctx.fill();
 
       // Crisp outer ring stroke
-      ctx.strokeStyle = isDark ? "rgba(200, 150, 50, 0.42)" : "rgba(110, 65, 18, 0.35)";
+      ctx.strokeStyle = isDark
+        ? "rgba(200, 150, 50, 0.42)"
+        : "rgba(110, 65, 18, 0.35)";
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.arc(0, 0, MED_R, 0, Math.PI * 2);
       ctx.stroke();
 
       // Second inner ring decoration
-      ctx.strokeStyle = isDark ? "rgba(180, 130, 42, 0.22)" : "rgba(110, 65, 18, 0.18)";
+      ctx.strokeStyle = isDark
+        ? "rgba(180, 130, 42, 0.22)"
+        : "rgba(110, 65, 18, 0.18)";
       ctx.lineWidth = 0.8;
       ctx.beginPath();
       ctx.arc(0, 0, MED_R * 0.88, 0, Math.PI * 2);
@@ -234,7 +259,8 @@ function useBatikAnimation(
         }
         // Fade in from bottom, fade out at top
         const lifeFrac = 1 - p.y / H;
-        const alpha = p.alpha * Math.min(lifeFrac * 3, 1) * Math.min((1 - lifeFrac) * 5, 1);
+        const alpha =
+          p.alpha * Math.min(lifeFrac * 3, 1) * Math.min((1 - lifeFrac) * 5, 1);
         ctx.fillStyle = isDark
           ? `rgba(215, 165, 52, ${alpha})`
           : `rgba(125, 75, 18, ${alpha * 0.7})`;
@@ -262,7 +288,8 @@ function AboutContent() {
   const { theme } = useTheme();
   const isDark =
     theme === "dark" ||
-    (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    (theme === "system" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useBatikAnimation(canvasRef, isDark);
@@ -272,37 +299,73 @@ function AboutContent() {
     {
       label: "Tauri 2",
       style: isDark
-        ? { background: "rgba(120,60,15,0.55)", color: "#e8c070", border: "rgba(175,110,35,0.35)" }
-        : { background: "rgba(160,85,20,0.18)", color: "#7a3c08", border: "rgba(140,80,20,0.3)" },
+        ? {
+            background: "rgba(120,60,15,0.55)",
+            color: "#e8c070",
+            border: "rgba(175,110,35,0.35)",
+          }
+        : {
+            background: "rgba(160,85,20,0.18)",
+            color: "#7a3c08",
+            border: "rgba(140,80,20,0.3)",
+          },
     },
     {
       label: "Rust",
       style: isDark
-        ? { background: "rgba(90,35,12,0.55)", color: "#e09060", border: "rgba(160,90,35,0.35)" }
-        : { background: "rgba(140,65,15,0.18)", color: "#6b2e08", border: "rgba(120,60,15,0.3)" },
+        ? {
+            background: "rgba(90,35,12,0.55)",
+            color: "#e09060",
+            border: "rgba(160,90,35,0.35)",
+          }
+        : {
+            background: "rgba(140,65,15,0.18)",
+            color: "#6b2e08",
+            border: "rgba(120,60,15,0.3)",
+          },
     },
     {
       label: "React",
       style: isDark
-        ? { background: "rgba(20,45,60,0.55)", color: "#7ac8e0", border: "rgba(40,110,145,0.35)" }
-        : { background: "rgba(20,80,110,0.12)", color: "#0e5272", border: "rgba(20,80,110,0.28)" },
+        ? {
+            background: "rgba(20,45,60,0.55)",
+            color: "#7ac8e0",
+            border: "rgba(40,110,145,0.35)",
+          }
+        : {
+            background: "rgba(20,80,110,0.12)",
+            color: "#0e5272",
+            border: "rgba(20,80,110,0.28)",
+          },
     },
     {
       label: "TypeScript",
       style: isDark
-        ? { background: "rgba(18,42,70,0.55)", color: "#7aabe0", border: "rgba(35,90,160,0.35)" }
-        : { background: "rgba(18,60,120,0.12)", color: "#0d3a72", border: "rgba(18,60,120,0.28)" },
+        ? {
+            background: "rgba(18,42,70,0.55)",
+            color: "#7aabe0",
+            border: "rgba(35,90,160,0.35)",
+          }
+        : {
+            background: "rgba(18,60,120,0.12)",
+            color: "#0d3a72",
+            border: "rgba(18,60,120,0.28)",
+          },
     },
   ];
 
   const cardBg = isDark ? "rgba(18, 9, 2, 0.82)" : "rgba(242, 226, 196, 0.85)";
-  const cardBorder = isDark ? "rgba(185, 138, 45, 0.38)" : "rgba(130, 78, 18, 0.32)";
+  const cardBorder = isDark
+    ? "rgba(185, 138, 45, 0.38)"
+    : "rgba(130, 78, 18, 0.32)";
   const cardShadow = isDark
     ? "0 8px 40px rgba(10,5,1,0.7), 0 0 0 1px rgba(185,138,45,0.18), inset 0 1px 0 rgba(220,175,70,0.10)"
     : "0 8px 32px rgba(80,40,8,0.18), 0 0 0 1px rgba(130,78,18,0.14), inset 0 1px 0 rgba(255,240,200,0.8)";
 
   const textPrimary = isDark ? "#f0ddb8" : "#2e1505";
-  const textSecondary = isDark ? "rgba(210,175,95,0.75)" : "rgba(100,55,12,0.75)";
+  const textSecondary = isDark
+    ? "rgba(210,175,95,0.75)"
+    : "rgba(100,55,12,0.75)";
   const textFaint = isDark ? "rgba(175,140,65,0.42)" : "rgba(100,55,12,0.45)";
   const divColor = isDark ? "rgba(180,138,45,0.22)" : "rgba(130,78,18,0.2)";
 
@@ -374,7 +437,9 @@ function AboutContent() {
                     bottom: dy === 1 ? 6 : "auto",
                     left: dx === -1 ? 6 : "auto",
                     right: dx === 1 ? 6 : "auto",
-                    background: isDark ? "rgba(220,175,70,0.5)" : "rgba(255,220,140,0.6)",
+                    background: isDark
+                      ? "rgba(220,175,70,0.5)"
+                      : "rgba(255,220,140,0.6)",
                   }}
                 />
               ))}
@@ -395,20 +460,22 @@ function AboutContent() {
                 fontSize: "2rem",
                 color: textPrimary,
                 letterSpacing: "-0.06em",
-                textShadow: isDark ? "0 2px 12px rgba(210,165,55,0.25)" : "none",
+                textShadow: isDark
+                  ? "0 2px 12px rgba(210,165,55,0.25)"
+                  : "none",
               }}
             >
-              omah
+              ꦲꦺꦴꦩꦃ
             </h1>
 
             {/* Javanese script + meaning */}
-            <div className="flex items-center justify-center gap-2">
+            <div className="flex items-center justify-center gap-2 mt-4">
               <div style={{ width: 24, height: "1px", background: divColor }} />
               <p
                 className="text-[11px] tracking-widest uppercase"
                 style={{ color: textSecondary, letterSpacing: "0.18em" }}
               >
-                home · rumah · ꦲꦺꦴꦩꦃ
+                omah (home in Javanese)
               </p>
               <div style={{ width: 24, height: "1px", background: divColor }} />
             </div>
@@ -418,7 +485,9 @@ function AboutContent() {
                 <span
                   className="rounded-full px-2.5 py-0.5 font-mono text-[11px] font-medium"
                   style={{
-                    background: isDark ? "rgba(155,100,25,0.30)" : "rgba(140,80,20,0.15)",
+                    background: isDark
+                      ? "rgba(155,100,25,0.30)"
+                      : "rgba(140,80,20,0.15)",
                     color: isDark ? "#ddb84a" : "#7a3c08",
                     border: `1px solid ${isDark ? "rgba(185,138,45,0.38)" : "rgba(140,80,20,0.28)"}`,
                   }}
@@ -443,7 +512,12 @@ function AboutContent() {
           {/* Tagline */}
           <p className="text-sm leading-snug" style={{ color: textSecondary }}>
             A dotfile manager built for the{" "}
-            <span style={{ color: isDark ? "#d4a83c" : "#8b4a12", fontStyle: "italic" }}>
+            <span
+              style={{
+                color: isDark ? "#d4a83c" : "#8b4a12",
+                fontStyle: "italic",
+              }}
+            >
               wandering developer
             </span>
             .

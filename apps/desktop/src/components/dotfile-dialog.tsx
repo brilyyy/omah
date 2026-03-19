@@ -1,7 +1,9 @@
 import { useForm } from "@tanstack/react-form";
 import { z } from "zod";
 import { open as openFilePicker } from "@tauri-apps/plugin-dialog";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useConfig } from "@/hooks/use-config";
+import { queryKeys } from "@/lib/query-keys";
 import { FolderOpen, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -168,24 +170,42 @@ interface DotfileFormDialogProps {
 function DotfileFormDialog({ mode, dotfile, dotIndex, onClose }: DotfileFormDialogProps) {
   const queryClient = useQueryClient();
 
-  const { data: config } = useQuery({
-    queryKey: ["config"],
-    queryFn: () => ipc.getConfig(),
-  });
+  const { data: config } = useConfig();
 
   const saveMutation = useMutation({
-    mutationFn: (updated: Dotfile) => {
+    mutationFn: async ({
+      updated,
+      symlinkAction,
+    }: {
+      updated: Dotfile;
+      /** null = no change; true = enable (backup); false = disable (restore) */
+      symlinkAction: boolean | null;
+    }) => {
       if (!config) throw new Error("Config not loaded");
       const dots =
         mode === "edit" && dotIndex !== undefined
           ? config.dots.map((d, i) => (i === dotIndex ? updated : d))
           : [...config.dots, updated];
-      return ipc.saveConfig({ ...config, dots });
+      await ipc.saveConfig({ ...config, dots });
+
+      // Apply the filesystem change if symlink mode was toggled
+      if (symlinkAction === true) {
+        await ipc.backupOne(updated.name);   // copies source → vault, creates symlink
+      } else if (symlinkAction === false) {
+        await ipc.restoreOne(updated.name);  // copies vault → source, removes symlink
+      }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["config"] });
-      queryClient.invalidateQueries({ queryKey: ["status"] });
-      toast.success(mode === "edit" ? "Dotfile updated" : "Dotfile added");
+    onSuccess: (_, { symlinkAction }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.config() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.status() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.diff() });
+      if (symlinkAction === true) {
+        toast.success("Symlink enabled — source replaced with symlink");
+      } else if (symlinkAction === false) {
+        toast.success("Symlink removed — source restored as real file");
+      } else {
+        toast.success(mode === "edit" ? "Dotfile updated" : "Dotfile added");
+      }
       onClose();
     },
     onError: (e) => toast.error(String(e)),
@@ -196,7 +216,11 @@ function DotfileFormDialog({ mode, dotfile, dotIndex, onClose }: DotfileFormDial
     defaultValues: mode === "edit" && dotfile ? dotfileToFormValues(dotfile) : DEFAULT_VALUES,
     validators: { onChange: dotfileSchema },
     onSubmit: async ({ value }) => {
-      await saveMutation.mutateAsync(formValuesToDotfile(value));
+      const updated = formValuesToDotfile(value);
+      const oldSymlink = dotfile?.symlink ?? false;
+      const symlinkAction =
+        mode === "edit" && oldSymlink !== value.symlink ? value.symlink : null;
+      await saveMutation.mutateAsync({ updated, symlinkAction });
     },
   });
 

@@ -1,5 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowDownToLine,
@@ -17,7 +16,7 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
-import { toast } from "sonner";
+import { useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,9 +30,14 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { DotfileDialog } from "@/components/dotfile-dialog";
+import { useConfig } from "@/hooks/use-config";
+import { useStatus } from "@/hooks/use-status";
+import { useBackupAll, useBackupOne, useRestoreAll, useRestoreOne } from "@/hooks/use-backup-restore";
+import { useDeleteDotfile } from "@/hooks/use-delete-dotfile";
+import { useSymlinkMutation } from "@/hooks/use-symlink-mutation";
 import { ipc, type Dotfile, type DotfileStatus, type RunResult } from "@/lib/ipc";
-import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -41,72 +45,18 @@ export const Route = createFileRoute("/")({
 });
 
 function DotsView() {
-  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
 
-  const { data: statuses, isLoading, error, refetch } = useQuery({
-    queryKey: ["status"],
-    queryFn: () => ipc.getStatus(),
-  });
-
-  const { data: config } = useQuery({
-    queryKey: ["config"],
-    queryFn: () => ipc.getConfig(),
-  });
+  const { data: statuses, isLoading, error, refetch } = useStatus();
+  const { data: config } = useConfig();
 
   const hasSymlinkedDots = config?.dots.some((d) => d.symlink) ?? false;
 
-  const backupMutation = useMutation({
-    mutationFn: () => ipc.backupAll(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["status"] });
-      queryClient.invalidateQueries({ queryKey: ["diff"] });
-      toast.success("All dotfiles backed up");
-    },
-    onError: (e) => toast.error(String(e)),
-  });
-
-  const restoreMutation = useMutation({
-    mutationFn: () => ipc.restoreAll(),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["status"] });
-      toast.success("All dotfiles restored");
-    },
-    onError: (e) => toast.error(String(e)),
-  });
-
-  const backupOneMutation = useMutation({
-    mutationFn: (name: string) => ipc.backupOne(name),
-    onSuccess: (_, name) => {
-      queryClient.invalidateQueries({ queryKey: ["status"] });
-      queryClient.invalidateQueries({ queryKey: ["diff"] });
-      toast.success(`Backed up "${name}"`);
-    },
-    onError: (e) => toast.error(String(e)),
-  });
-
-  const restoreOneMutation = useMutation({
-    mutationFn: (name: string) => ipc.restoreOne(name),
-    onSuccess: (_, name) => {
-      queryClient.invalidateQueries({ queryKey: ["status"] });
-      toast.success(`Restored "${name}"`);
-    },
-    onError: (e) => toast.error(String(e)),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (dotIndex: number) => {
-      if (!config) throw new Error("Config not loaded");
-      const dots = config.dots.filter((_, i) => i !== dotIndex);
-      return ipc.saveConfig({ ...config, dots });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["config"] });
-      queryClient.invalidateQueries({ queryKey: ["status"] });
-      toast.success("Dotfile removed");
-    },
-    onError: (e) => toast.error(String(e)),
-  });
+  const backupMutation = useBackupAll();
+  const restoreMutation = useRestoreAll();
+  const backupOneMutation = useBackupOne();
+  const restoreOneMutation = useRestoreOne();
+  const deleteMutation = useDeleteDotfile();
 
   const isBusy =
     backupMutation.isPending ||
@@ -317,6 +267,8 @@ function DotCard({
   onDelete: () => void;
   disabled: boolean;
 }) {
+  const symlinkMutation = useSymlinkMutation(dotIndex, dot.name);
+
   const hasIssues = dot.missing_deps.length > 0 || dot.pending_setup.length > 0;
 
   // Left accent color
@@ -416,6 +368,20 @@ function DotCard({
             )}
         </Link>
 
+        {/* Symlink toggle — always visible */}
+        <div
+          className="flex shrink-0 items-center gap-1.5 self-start pt-0.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span className="text-[11px] text-muted-foreground select-none">symlink</span>
+          <Switch
+            checked={dotfileConfig?.symlink ?? false}
+            onCheckedChange={(checked) => symlinkMutation.mutate(checked)}
+            disabled={disabled || symlinkMutation.isPending}
+            aria-label="Toggle symlink mode"
+          />
+        </div>
+
         {/* Actions — visible on hover */}
         <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
           <Button
@@ -485,7 +451,6 @@ function DotCard({
 // ── Setup step row ────────────────────────────────────────────────────────────
 
 function SetupStepRow({ command }: { command: string }) {
-  const queryClient = useQueryClient();
   const [result, setResult] = useState<RunResult | null>(null);
   const [running, setRunning] = useState(false);
 
@@ -495,7 +460,6 @@ function SetupStepRow({ command }: { command: string }) {
     try {
       const r = await ipc.runSetupStep(command);
       setResult(r);
-      if (r.success) queryClient.invalidateQueries({ queryKey: ["status"] });
     } catch (e) {
       setResult({ success: false, output: String(e) });
     } finally {

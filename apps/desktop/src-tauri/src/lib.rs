@@ -1,5 +1,5 @@
 use omah_core::{
-    backup, diff, get_default_config_path, load_toml_config, save_toml_config, restore, status,
+    backup, diff, get_default_config_path, load_toml_config, restore, save_toml_config, status,
     DotStatus, FileChange, OmahConfig,
 };
 use serde::Serialize;
@@ -91,7 +91,10 @@ fn backup_one(name: String) -> Result<(), String> {
         .find(|d| d.name == name)
         .ok_or_else(|| format!("Dotfile '{name}' not found"))?
         .clone();
-    let single = OmahConfig { dots: vec![dot], ..config };
+    let single = OmahConfig {
+        dots: vec![dot],
+        ..config
+    };
     backup(&single).map_err(|e| {
         error!("{e}");
         e.to_string()
@@ -109,7 +112,10 @@ fn restore_one(name: String) -> Result<(), String> {
         .find(|d| d.name == name)
         .ok_or_else(|| format!("Dotfile '{name}' not found"))?
         .clone();
-    let single = OmahConfig { dots: vec![dot], ..config };
+    let single = OmahConfig {
+        dots: vec![dot],
+        ..config
+    };
     restore(&single).map_err(|e| {
         error!("{e}");
         e.to_string()
@@ -169,23 +175,52 @@ async fn run_setup_step(command: String) -> Result<RunResult, String> {
     })
 }
 
-/// Run a setup step and stream each output line as a Tauri event.
-/// The frontend subscribes to `setup_step_output` events filtered by `run_id`.
-#[tauri::command]
-#[instrument(skip(window, command))]
-async fn run_setup_step_stream(
-    window: tauri::WebviewWindow,
-    run_id: String,
-    command: String,
-) -> Result<(), String> {
+// ── Streaming helpers ────────────────────────────────────────────────────────
+
+fn emit_line(
+    window: &tauri::WebviewWindow,
+    run_id: &str,
+    line: impl Into<String>,
+    is_stderr: bool,
+) {
+    let _ = window.emit(
+        "setup_step_output",
+        SetupStepOutputEvent {
+            run_id: run_id.to_string(),
+            line: line.into(),
+            is_stderr,
+            done: false,
+            success: None,
+        },
+    );
+}
+
+fn emit_done(window: &tauri::WebviewWindow, run_id: &str, success: bool) {
+    let _ = window.emit(
+        "setup_step_output",
+        SetupStepOutputEvent {
+            run_id: run_id.to_string(),
+            line: String::new(),
+            is_stderr: false,
+            done: true,
+            success: Some(success),
+        },
+    );
+}
+
+/// Spawn a shell command, stream each stdout/stderr line as events, and return
+/// whether the process exited successfully. Does NOT emit a `done` event.
+async fn stream_command(
+    window: &tauri::WebviewWindow,
+    run_id: &str,
+    command: &str,
+) -> Result<bool, String> {
     use tokio::io::{AsyncBufReadExt, BufReader};
     use tokio::sync::mpsc;
 
-    info!("run_setup_step_stream");
-
     let mut child = tokio::process::Command::new("sh")
         .arg("-c")
-        .arg(&command)
+        .arg(command)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
@@ -197,7 +232,7 @@ async fn run_setup_step_stream(
     let (tx, mut rx) = mpsc::channel::<(String, bool)>(256);
     let tx_out = tx.clone();
     let tx_err = tx.clone();
-    drop(tx); // channel closes when both reader tasks finish
+    drop(tx);
 
     tokio::spawn(async move {
         let mut lines = BufReader::new(stdout).lines();
@@ -214,30 +249,131 @@ async fn run_setup_step_stream(
     });
 
     while let Some((line, is_stderr)) = rx.recv().await {
-        let _ = window.emit(
-            "setup_step_output",
-            SetupStepOutputEvent {
-                run_id: run_id.clone(),
-                line,
-                is_stderr,
-                done: false,
-                success: None,
-            },
-        );
+        emit_line(window, run_id, line, is_stderr);
     }
 
-    let status = child.wait().await.map_err(|e| e.to_string())?;
-    let _ = window.emit(
-        "setup_step_output",
-        SetupStepOutputEvent {
-            run_id: run_id.clone(),
-            line: String::new(),
-            is_stderr: false,
-            done: true,
-            success: Some(status.success()),
-        },
-    );
+    child
+        .wait()
+        .await
+        .map(|s| s.success())
+        .map_err(|e| e.to_string())
+}
 
+// ── Streaming commands ───────────────────────────────────────────────────────
+
+/// Run a setup step and stream each output line as a Tauri event.
+/// The frontend subscribes to `setup_step_output` events filtered by `run_id`.
+#[tauri::command]
+#[instrument(skip(window, command))]
+async fn run_setup_step_stream(
+    window: tauri::WebviewWindow,
+    run_id: String,
+    command: String,
+) -> Result<(), String> {
+    info!("run_setup_step_stream");
+    let success = stream_command(&window, &run_id, &command).await?;
+    emit_done(&window, &run_id, success);
+    Ok(())
+}
+
+/// Install all missing deps for a dotfile and stream the output.
+#[tauri::command]
+#[instrument(skip(window))]
+async fn install_missing_deps(
+    window: tauri::WebviewWindow,
+    run_id: String,
+    name: String,
+) -> Result<(), String> {
+    info!("install_missing_deps: {name}");
+    let config = load_config()?;
+    let dot = config
+        .dots
+        .iter()
+        .find(|d| d.name == name)
+        .ok_or_else(|| format!("Dotfile '{name}' not found"))?;
+
+    let missing = omah_core::missing_deps(dot);
+    if missing.is_empty() {
+        emit_line(
+            &window,
+            &run_id,
+            "✓ All dependencies are already installed.",
+            false,
+        );
+        emit_done(&window, &run_id, true);
+        return Ok(());
+    }
+
+    let pm = omah_core::resolve_pkg_manager(config.pkg_manager.as_deref()).ok_or_else(|| {
+        "No package manager found in PATH (tried brew, apt-get, pacman, dnf, zypper)".to_string()
+    })?;
+    let command = omah_core::install_command(&pm, &missing);
+
+    emit_line(&window, &run_id, format!("$ {command}"), false);
+    let success = stream_command(&window, &run_id, &command).await?;
+    emit_done(&window, &run_id, success);
+    Ok(())
+}
+
+/// Run all pending setup steps for a dotfile in sequence, streaming output.
+#[tauri::command]
+#[instrument(skip(window))]
+async fn run_pending_setups(
+    window: tauri::WebviewWindow,
+    run_id: String,
+    name: String,
+) -> Result<(), String> {
+    info!("run_pending_setups: {name}");
+    let config = load_config()?;
+    let dot = config
+        .dots
+        .iter()
+        .find(|d| d.name == name)
+        .ok_or_else(|| format!("Dotfile '{name}' not found"))?;
+
+    let pending: Vec<String> = omah_core::pending_setup_steps(dot)
+        .into_iter()
+        .map(|s| s.install.clone())
+        .collect();
+
+    if pending.is_empty() {
+        emit_line(
+            &window,
+            &run_id,
+            "✓ All setup steps are already done.",
+            false,
+        );
+        emit_done(&window, &run_id, true);
+        return Ok(());
+    }
+
+    let total = pending.len();
+    let mut all_ok = true;
+
+    for (i, cmd) in pending.iter().enumerate() {
+        // Step header separator
+        emit_line(
+            &window,
+            &run_id,
+            format!("─── step {}/{total} ───", i + 1),
+            false,
+        );
+        emit_line(&window, &run_id, format!("$ {cmd}"), false);
+
+        let success = stream_command(&window, &run_id, cmd).await?;
+        if !success {
+            all_ok = false;
+            emit_line(
+                &window,
+                &run_id,
+                format!("✗ step {} failed — stopping", i + 1),
+                true,
+            );
+            break;
+        }
+    }
+
+    emit_done(&window, &run_id, all_ok);
     Ok(())
 }
 
@@ -256,6 +392,7 @@ pub fn run() {
     tracing::info!("omah desktop v{}", env!("CARGO_PKG_VERSION"));
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
@@ -270,6 +407,8 @@ pub fn run() {
             get_diff,
             run_setup_step,
             run_setup_step_stream,
+            install_missing_deps,
+            run_pending_setups,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

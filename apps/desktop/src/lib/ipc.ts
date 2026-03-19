@@ -71,6 +71,10 @@ export const ipc = {
   backupOne: (name: string) => invoke<void>("backup_one", { name }),
   restoreOne: (name: string) => invoke<void>("restore_one", { name }),
   runSetupStep: (command: string) => invoke<RunResult>("run_setup_step", { command }),
+  installMissingDeps: (runId: string, name: string) =>
+    invoke<void>("install_missing_deps", { runId, name }),
+  runPendingSetups: (runId: string, name: string) =>
+    invoke<void>("run_pending_setups", { runId, name }),
 
   /** Stream setup step output line-by-line via Tauri events.
    *  `onEvent` is called for each line and once more with `done: true` when finished.

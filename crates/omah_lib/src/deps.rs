@@ -6,31 +6,192 @@ pub fn declared_deps(dot: &DotfileConfig) -> &[String] {
     dot.deps.as_deref().unwrap_or(&[])
 }
 
-/// Maps a package manager name to its actual binary name in PATH.
-/// Many packages are installed under a different name than their executable
-/// (e.g. the `neovim` package provides the `nvim` binary).
+/// Package name → binary name mapping for packages whose installed binary
+/// differs from the package name. Lookup is case-insensitive.
+///
+/// Format: `("package-name", "binary-name")` — multiple package aliases may
+/// map to the same binary (add them as separate entries).
+pub const PKG_TO_BIN: &[(&str, &str)] = &[
+    // ── Editors ──────────────────────────────────────────────────────────────
+    ("neovim", "nvim"),
+    ("vim-nox", "vim"),
+    ("gvim", "vim"),
+    ("emacs-nox", "emacs"),
+    ("emacs-gtk", "emacs"),
+    ("code", "code"),              // VS Code (snap/apt name)
+    ("visual-studio-code", "code"),
+    ("helix", "hx"),
+    ("micro-editor", "micro"),
+    ("kakoune", "kak"),
+    // ── Search / file tools ──────────────────────────────────────────────────
+    ("ripgrep", "rg"),
+    ("fd-find", "fd"),             // Debian/Ubuntu apt name
+    ("fd-rs", "fd"),
+    ("bat-cat", "bat"),            // some distros
+    ("the_silver_searcher", "ag"),
+    ("silversearcher-ag", "ag"),   // Debian apt name
+    ("ugrep", "ugrep"),
+    ("hypergrep", "hgrep"),
+    ("fzf", "fzf"),
+    ("skim", "sk"),
+    ("broot", "br"),
+    ("lsd", "lsd"),
+    ("eza", "eza"),
+    ("exa", "eza"),                // deprecated alias
+    ("tre-command", "tre"),
+    ("dust", "dust"),
+    ("dua-cli", "dua"),
+    ("ncdu", "ncdu"),
+    ("tokei", "tokei"),
+    ("loc", "loc"),
+    // ── Shell & navigation ───────────────────────────────────────────────────
+    ("nushell", "nu"),
+    ("zoxide", "zoxide"),
+    ("fish", "fish"),
+    ("zsh", "zsh"),
+    ("bash", "bash"),
+    ("dash", "dash"),
+    ("elvish", "elvish"),
+    ("xonsh", "xonsh"),
+    ("oil-shell", "osh"),
+    ("carapace-bin", "carapace"),
+    ("atuin", "atuin"),
+    ("mcfly", "mcfly"),
+    ("direnv", "direnv"),
+    ("starship", "starship"),
+    ("oh-my-posh", "oh-my-posh"),
+    // ── Terminal multiplexers ─────────────────────────────────────────────────
+    ("tmux", "tmux"),
+    ("zellij", "zellij"),
+    ("screen", "screen"),
+    ("byobu", "byobu"),
+    // ── TUI system tools ──────────────────────────────────────────────────────
+    ("bottom", "btm"),
+    ("btop", "btop"),
+    ("htop", "htop"),
+    ("gtop", "gtop"),
+    ("glances", "glances"),
+    ("procs", "procs"),
+    ("bandwhich", "bandwhich"),
+    ("nethogs", "nethogs"),
+    ("iftop", "iftop"),
+    ("gping", "gping"),
+    ("dog", "dog"),
+    ("xh", "xh"),
+    ("curlie", "curlie"),
+    ("httpie", "http"),            // httpie → http binary
+    ("http", "http"),
+    // ── Diff / VCS ───────────────────────────────────────────────────────────
+    ("difftastic", "difft"),
+    ("delta", "delta"),
+    ("git-delta", "delta"),
+    ("diff-so-fancy", "diff-so-fancy"),
+    ("lazygit", "lazygit"),
+    ("gitui", "gitui"),
+    ("tig", "tig"),
+    ("gh", "gh"),                  // GitHub CLI
+    ("glab", "glab"),              // GitLab CLI
+    ("hub", "hub"),
+    // ── Language runtimes & package managers ─────────────────────────────────
+    ("nodejs", "node"),
+    ("node-js", "node"),
+    ("nodejs-lts", "node"),
+    ("python", "python3"),
+    ("python3-pip", "python3"),
+    ("python3", "python3"),
+    ("pyenv", "pyenv"),
+    ("pipx", "pipx"),
+    ("poetry", "poetry"),
+    ("uv", "uv"),
+    ("rye", "rye"),
+    ("ruby", "ruby"),
+    ("rbenv", "rbenv"),
+    ("rvm", "rvm"),
+    ("rustup", "rustup"),
+    ("cargo", "cargo"),
+    ("go", "go"),
+    ("golang", "go"),
+    ("java", "java"),
+    ("openjdk", "java"),
+    ("temurin", "java"),
+    ("deno", "deno"),
+    ("bun", "bun"),
+    ("pnpm", "pnpm"),
+    ("yarn", "yarn"),
+    ("lua", "lua"),
+    ("luarocks", "luarocks"),
+    ("php", "php"),
+    ("composer", "composer"),
+    ("perl", "perl"),
+    ("elixir", "elixir"),
+    ("erlang", "erl"),
+    ("erlang-solutions", "erl"),
+    ("scala", "scala"),
+    ("kotlin", "kotlin"),
+    ("swift", "swift"),
+    ("dart", "dart"),
+    ("flutter", "flutter"),
+    ("zig", "zig"),
+    ("nim", "nim"),
+    ("crystal", "crystal"),
+    ("haskell-platform", "ghc"),
+    ("ghc", "ghc"),
+    ("stack", "stack"),
+    ("cabal-install", "cabal"),
+    ("ocaml", "ocaml"),
+    ("opam", "opam"),
+    ("dotnet", "dotnet"),
+    ("dotnet-sdk", "dotnet"),
+    // ── Build tools ──────────────────────────────────────────────────────────
+    ("cmake", "cmake"),
+    ("make", "make"),
+    ("ninja-build", "ninja"),
+    ("ninja", "ninja"),
+    ("meson", "meson"),
+    ("autoconf", "autoconf"),
+    ("automake", "automake"),
+    ("pkg-config", "pkg-config"),
+    ("pkgconf", "pkg-config"),
+    // ── Containers & cloud ───────────────────────────────────────────────────
+    ("docker", "docker"),
+    ("docker-ce", "docker"),
+    ("podman", "podman"),
+    ("kubectl", "kubectl"),
+    ("kubernetes-cli", "kubectl"), // Homebrew name
+    ("helm", "helm"),
+    ("k9s", "k9s"),
+    ("terraform", "terraform"),
+    ("pulumi", "pulumi"),
+    ("ansible", "ansible"),
+    ("aws-cli", "aws"),
+    ("awscli", "aws"),
+    ("azure-cli", "az"),
+    ("google-cloud-sdk", "gcloud"),
+    ("gcloud", "gcloud"),
+    ("flyctl", "flyctl"),
+    ("wrangler", "wrangler"),
+    // ── Fonts / misc ─────────────────────────────────────────────────────────
+    ("stow", "stow"),
+    ("chezmoi", "chezmoi"),
+    ("mackup", "mackup"),
+    ("antibody", "antibody"),
+    ("antigen", "antigen"),
+    ("zinit", "zinit"),
+    ("sheldon", "sheldon"),
+    ("topgrade", "topgrade"),
+    ("mas", "mas"),               // Mac App Store CLI
+    ("mas-cli", "mas"),
+];
+
+/// Maps a package name to the binary it installs.
+/// Falls back to the package name itself when no mapping is found.
 fn pkg_to_bin(pkg: &str) -> &str {
-    match pkg.to_lowercase().as_str() {
-        // Editors
-        "neovim" => "nvim",
-        // Search / file tools
-        "ripgrep" => "rg",
-        "fd-find" | "fd-rs" => "fd",
-        "bat-cat" => "bat",
-        "the_silver_searcher" => "ag",
-        // Shell & navigation
-        "nushell" => "nu",
-        "zoxide" => "zoxide",
-        // Node / Python renames
-        "nodejs" | "node-js" => "node",
-        "python" | "python3-pip" => "python3",
-        // TUI / system tools
-        "bottom" => "btm",
-        "difftastic" => "difft",
-        "eza" | "exa" => "eza",
-        // Everything else: assume binary name matches package name
-        _ => pkg,
-    }
+    let lower = pkg.to_lowercase();
+    PKG_TO_BIN
+        .iter()
+        .find(|(p, _)| *p == lower.as_str())
+        .map(|(_, b)| *b)
+        .unwrap_or(pkg)
 }
 
 /// True if the binary exists in PATH.

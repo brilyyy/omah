@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowDownToLine,
@@ -9,16 +9,25 @@ import {
   HardDrive,
   Link2,
   Loader2,
+  PackageCheck,
   Pencil,
   Play,
+  PlayCircle,
   SkipForward,
   XCircle,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { DotfileDialog } from "@/components/dotfile-dialog";
+import { useConfig } from "@/hooks/use-config";
+import { useStatus } from "@/hooks/use-status";
+import { useBackupOne, useRestoreOne } from "@/hooks/use-backup-restore";
+import { useSymlinkMutation } from "@/hooks/use-symlink-mutation";
+import { useStreamingTerminal, type TerminalLine } from "@/hooks/use-streaming-terminal";
 import { ipc, type SetupStep } from "@/lib/ipc";
+import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/dotfile/$name")({
@@ -29,37 +38,16 @@ function DotfileDetail() {
   const { name } = Route.useParams();
   const queryClient = useQueryClient();
 
-  const { data: config } = useQuery({
-    queryKey: ["config"],
-    queryFn: () => ipc.getConfig(),
-  });
-  const { data: statuses, isLoading } = useQuery({
-    queryKey: ["status"],
-    queryFn: () => ipc.getStatus(),
-  });
+  const { data: config } = useConfig();
+  const { data: statuses, isLoading } = useStatus();
 
   const dot = config?.dots.find((d) => d.name === name);
   const dotIndex = config?.dots.findIndex((d) => d.name === name) ?? -1;
   const status = statuses?.find((s) => s.name === name);
 
-  const backupMutation = useMutation({
-    mutationFn: () => ipc.backupOne(name),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["status"] });
-      queryClient.invalidateQueries({ queryKey: ["diff"] });
-      toast.success(`Backed up "${name}"`);
-    },
-    onError: (e) => toast.error(String(e)),
-  });
-
-  const restoreMutation = useMutation({
-    mutationFn: () => ipc.restoreOne(name),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["status"] });
-      toast.success(`Restored "${name}"`);
-    },
-    onError: (e) => toast.error(String(e)),
-  });
+  const backupMutation = useBackupOne();
+  const restoreMutation = useRestoreOne();
+  const symlinkMutation = useSymlinkMutation(dotIndex, name);
 
   const skipStepMutation = useMutation({
     mutationFn: (stepIndex: number) => {
@@ -71,8 +59,8 @@ function DotfileDetail() {
       return ipc.saveConfig({ ...config, dots });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["config"] });
-      queryClient.invalidateQueries({ queryKey: ["status"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.config() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.status() });
       toast.success("Step skipped");
     },
     onError: (e) => toast.error(String(e)),
@@ -120,12 +108,16 @@ function DotfileDetail() {
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-base font-semibold">{dot.name}</h1>
               <StatusBadge status={status} />
-              {status.symlinked && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[11px] text-blue-400">
-                  <Link2 className="size-2.5" />
-                  symlink
-                </span>
-              )}
+              <div className="flex items-center gap-1.5">
+                <Link2 className="size-2.5 text-muted-foreground" />
+                <span className="text-[11px] text-muted-foreground select-none">symlink</span>
+                <Switch
+                  checked={dot.symlink ?? false}
+                  onCheckedChange={(checked) => symlinkMutation.mutate(checked)}
+                  disabled={isBusy || symlinkMutation.isPending}
+                  aria-label="Toggle symlink mode"
+                />
+              </div>
             </div>
             <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
               {dot.source}
@@ -137,7 +129,7 @@ function DotfileDetail() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => restoreMutation.mutate()}
+            onClick={() => restoreMutation.mutate(name)}
             disabled={isBusy}
           >
             {restoreMutation.isPending ? (
@@ -147,7 +139,7 @@ function DotfileDetail() {
             )}
             Restore
           </Button>
-          <Button size="sm" onClick={() => backupMutation.mutate()} disabled={isBusy}>
+          <Button size="sm" onClick={() => backupMutation.mutate(name)} disabled={isBusy}>
             {backupMutation.isPending ? <Loader2 className="animate-spin" /> : <ArrowUpFromLine />}
             Backup
           </Button>
@@ -171,63 +163,21 @@ function DotfileDetail() {
 
         {/* Dependencies */}
         {dot.deps && dot.deps.length > 0 && (
-          <Section title="Dependencies">
-            <div className="divide-y divide-border/50">
-              {dot.deps.map((dep) => {
-                const missing = status.missing_deps.includes(dep);
-                return (
-                  <div key={dep} className="flex items-center gap-3 py-2.5">
-                    {missing ? (
-                      <XCircle className="size-3.5 shrink-0 text-yellow-500" />
-                    ) : (
-                      <CheckCircle2 className="size-3.5 shrink-0 text-green-500" />
-                    )}
-                    <span
-                      className={cn(
-                        "flex-1 font-mono text-xs",
-                        missing ? "text-yellow-500" : "text-foreground",
-                      )}
-                    >
-                      {dep}
-                    </span>
-                    <span
-                      className={cn(
-                        "text-[11px]",
-                        missing ? "text-yellow-500/70" : "text-muted-foreground",
-                      )}
-                    >
-                      {missing ? "not found" : "installed"}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </Section>
+          <DepsSection
+            deps={dot.deps}
+            missingDeps={status.missing_deps}
+            dotName={name}
+          />
         )}
 
         {/* Setup steps */}
         {dot.setup && dot.setup.length > 0 && (
-          <Section title={`Setup steps · ${dot.setup.length}`}>
-            <div className="divide-y divide-border/50">
-              {dot.setup.map((step, i) => {
-                const isSkipped =
-                  step.check === "skip" || (step.check?.startsWith("skip:") ?? false);
-                const isPending = !isSkipped && status.pending_setup.includes(step.install);
-                const isDone = !isSkipped && !isPending;
-                return (
-                  <SetupStepRow
-                    key={i}
-                    step={step}
-                    isSkipped={isSkipped}
-                    isPending={isPending}
-                    isDone={isDone}
-                    onSkip={() => skipStepMutation.mutate(i)}
-                    skipDisabled={skipStepMutation.isPending}
-                  />
-                );
-              })}
-            </div>
-          </Section>
+          <SetupSection
+            setup={dot.setup}
+            pendingSetup={status.pending_setup}
+            dotName={name}
+            skipMutation={skipStepMutation}
+          />
         )}
 
         {/* No issues notice */}
@@ -243,9 +193,241 @@ function DotfileDetail() {
   );
 }
 
-// ── Setup step row ────────────────────────────────────────────────────────────
+// ── Shared terminal panel ─────────────────────────────────────────────────────
 
-type TerminalLine = { text: string; isStderr: boolean; key: number };
+function TerminalPanel({
+  title,
+  lines,
+  running,
+  termSuccess,
+  termBodyRef,
+}: {
+  title: string;
+  lines: TerminalLine[];
+  running: boolean;
+  termSuccess: boolean | null;
+  termBodyRef: React.RefObject<HTMLDivElement | null>;
+}) {
+  return (
+    <div className="rounded-lg overflow-hidden border border-white/10 bg-[#0e0a05] shadow-lg">
+      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#1c1209] border-b border-white/8">
+        <span className="size-2.5 rounded-full bg-[#ff5f57]" />
+        <span className="size-2.5 rounded-full bg-[#febc2e]" />
+        <span className="size-2.5 rounded-full bg-[#28c840]" />
+        <span className="ml-3 flex-1 truncate font-mono text-[10px] text-white/35 select-none">
+          {title}
+        </span>
+        <span
+          className={cn(
+            "shrink-0 text-[10px] font-medium transition-colors",
+            running ? "text-yellow-400/80" : termSuccess ? "text-green-400/80" : "text-red-400/80",
+          )}
+        >
+          {running ? "running…" : termSuccess ? "✓ done" : "✗ failed"}
+        </span>
+      </div>
+      <div
+        ref={termBodyRef}
+        className="max-h-52 overflow-y-auto px-3 py-2 space-y-px scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10"
+      >
+        {lines.length === 0 && running && (
+          <span className="text-white/25 font-mono text-[11px]">Starting…</span>
+        )}
+        {lines.map((line) => (
+          <div
+            key={line.key}
+            className={cn(
+              "font-mono text-[11px] leading-relaxed whitespace-pre-wrap break-all",
+              "animate-[term-line_0.12s_ease-out]",
+              line.isStderr ? "text-red-400/90" : "text-[#d4c4a0]",
+            )}
+          >
+            {line.text}
+          </div>
+        ))}
+        {running && (
+          <span className="inline-block w-1.75 h-3.25 bg-[#d4c4a0]/70 animate-[cursor-blink_1s_step-end_infinite] align-middle" />
+        )}
+        {!running && termSuccess !== null && lines.length === 0 && (
+          <span className="font-mono text-[11px] text-white/30">(no output)</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Dependencies section ───────────────────────────────────────────────────────
+
+function DepsSection({
+  deps,
+  missingDeps,
+  dotName,
+}: {
+  deps: string[];
+  missingDeps: string[];
+  dotName: string;
+}) {
+  const queryClient = useQueryClient();
+  const hasMissing = missingDeps.length > 0;
+
+  const terminal = useStreamingTerminal(
+    useCallback((runId) => ipc.installMissingDeps(runId, dotName), [dotName]),
+  );
+
+  useEffect(() => {
+    if (terminal.termSuccess === true) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.status() });
+    }
+  }, [terminal.termSuccess, queryClient]);
+
+  return (
+    <Section
+      title="Dependencies"
+      action={
+        hasMissing ? (
+          <button
+            type="button"
+            onClick={terminal.run}
+            disabled={terminal.running}
+            className="flex items-center gap-1.5 rounded px-2 py-1 text-[11px] font-medium text-yellow-500 hover:bg-yellow-500/10 disabled:opacity-50 transition-colors"
+          >
+            {terminal.running ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              <PackageCheck className="size-3" />
+            )}
+            Install all
+          </button>
+        ) : undefined
+      }
+    >
+      <div className="divide-y divide-border/50">
+        {deps.map((dep) => {
+          const missing = missingDeps.includes(dep);
+          return (
+            <div key={dep} className="flex items-center gap-3 py-2.5">
+              {missing ? (
+                <XCircle className="size-3.5 shrink-0 text-yellow-500" />
+              ) : (
+                <CheckCircle2 className="size-3.5 shrink-0 text-green-500" />
+              )}
+              <span
+                className={cn(
+                  "flex-1 font-mono text-xs",
+                  missing ? "text-yellow-500" : "text-foreground",
+                )}
+              >
+                {dep}
+              </span>
+              <span
+                className={cn(
+                  "text-[11px]",
+                  missing ? "text-yellow-500/70" : "text-muted-foreground",
+                )}
+              >
+                {missing ? "not found" : "installed"}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {terminal.showTerminal && (
+        <div className="px-0 pb-3 pt-1">
+          <TerminalPanel
+            title="install missing deps"
+            lines={terminal.lines}
+            running={terminal.running}
+            termSuccess={terminal.termSuccess}
+            termBodyRef={terminal.termBodyRef}
+          />
+        </div>
+      )}
+    </Section>
+  );
+}
+
+// ── Setup steps section ───────────────────────────────────────────────────────
+
+function SetupSection({
+  setup,
+  pendingSetup,
+  dotName,
+  skipMutation,
+}: {
+  setup: SetupStep[];
+  pendingSetup: string[];
+  dotName: string;
+  skipMutation: { mutate: (i: number) => void; isPending: boolean };
+}) {
+  const queryClient = useQueryClient();
+  const pendingCount = pendingSetup.length;
+
+  const terminal = useStreamingTerminal(
+    useCallback((runId) => ipc.runPendingSetups(runId, dotName), [dotName]),
+  );
+
+  useEffect(() => {
+    if (terminal.termSuccess === true) {
+      queryClient.invalidateQueries({ queryKey: queryKeys.status() });
+    }
+  }, [terminal.termSuccess, queryClient]);
+
+  return (
+    <Section
+      title={`Setup steps · ${setup.length}`}
+      action={
+        pendingCount > 0 ? (
+          <button
+            type="button"
+            onClick={terminal.run}
+            disabled={terminal.running}
+            className="flex items-center gap-1.5 rounded px-2 py-1 text-[11px] font-medium text-yellow-500 hover:bg-yellow-500/10 disabled:opacity-50 transition-colors"
+          >
+            {terminal.running ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              <PlayCircle className="size-3" />
+            )}
+            Run all ({pendingCount})
+          </button>
+        ) : undefined
+      }
+    >
+      <div className="divide-y divide-border/50">
+        {setup.map((step, i) => {
+          const isSkipped =
+            step.check === "skip" || (step.check?.startsWith("skip:") ?? false);
+          const isPending = !isSkipped && pendingSetup.includes(step.install);
+          const isDone = !isSkipped && !isPending;
+          return (
+            <SetupStepRow
+              key={i}
+              step={step}
+              isSkipped={isSkipped}
+              isPending={isPending}
+              isDone={isDone}
+              onSkip={() => skipMutation.mutate(i)}
+              skipDisabled={skipMutation.isPending}
+            />
+          );
+        })}
+      </div>
+      {terminal.showTerminal && (
+        <div className="pb-3 pt-1">
+          <TerminalPanel
+            title="run all pending setup steps"
+            lines={terminal.lines}
+            running={terminal.running}
+            termSuccess={terminal.termSuccess}
+            termBodyRef={terminal.termBodyRef}
+          />
+        </div>
+      )}
+    </Section>
+  );
+}
+
+// ── Setup step row ────────────────────────────────────────────────────────────
 
 function SetupStepRow({
   step,
@@ -281,7 +463,7 @@ function SetupStepRow({
         if (event.done) {
           setRunning(false);
           setTermSuccess(event.success ?? false);
-          if (event.success) queryClient.invalidateQueries({ queryKey: ["status"] });
+          if (event.success) queryClient.invalidateQueries({ queryKey: queryKeys.status() });
         } else if (event.line) {
           setLines((prev) => [
             ...prev,
@@ -440,12 +622,23 @@ function SetupStepRow({
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div>
-      <p className="mb-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-        {title}
-      </p>
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          {title}
+        </p>
+        {action}
+      </div>
       <div className="rounded-lg border border-border bg-card px-4">{children}</div>
     </div>
   );
