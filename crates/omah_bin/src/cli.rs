@@ -19,9 +19,6 @@ pub enum Commands {
     Init,
     /// Back up all dotfiles to the vault
     Backup {
-        /// Skip the git auto-commit even if `git = true` in config
-        #[arg(long)]
-        no_git: bool,
         /// Ignore exclude patterns from config
         #[arg(long)]
         no_exclude: bool,

@@ -22,9 +22,6 @@ pub fn save_toml_config(config: &OmahConfig, path: &Path) -> Result<()> {
     let mut doc = Document::new();
 
     doc["vault_path"] = value(config.vault_path.clone());
-    if let Some(git) = config.git {
-        doc["git"] = value(git);
-    }
     if let Some(os) = &config.os {
         doc["os"] = value(os.clone());
     }
@@ -245,7 +242,6 @@ symlink = true
 
         let config = OmahConfig {
             vault_path: "/tmp/vault".into(),
-            git: None,
             os: None,
             pkg_manager: None,
             dots: vec![DotfileConfig {

@@ -79,8 +79,8 @@ fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Commands::Init => commands::init::run(),
-        Commands::Backup { no_git, no_exclude } => {
-            commands::backup::run(&config_path, no_git, no_exclude)
+        Commands::Backup { no_exclude } => {
+            commands::backup::run(&config_path, no_exclude)
         }
         Commands::Restore => commands::restore::run(&config_path),
         Commands::Status => commands::status::run(&config_path),

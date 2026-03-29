@@ -13,7 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { ipc, type Config } from "@/lib/ipc";
 
 export const Route = createFileRoute("/settings")({
@@ -114,14 +113,6 @@ function SettingsView() {
               onChange={(e) => update("vault_path", e.target.value)}
               className="font-mono text-xs w-64"
               placeholder="~/Documents/OmahVault"
-            />
-          </Field>
-
-          {/* Git auto-commit */}
-          <Field label="Git auto-commit" description="Commit vault after every backup">
-            <Switch
-              checked={form.git ?? false}
-              onCheckedChange={(v) => update("git", v)}
             />
           </Field>
 

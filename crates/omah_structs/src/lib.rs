@@ -4,8 +4,6 @@ use serde::{Deserialize, Serialize};
 pub struct OmahConfig {
     pub vault_path: String,
     pub dots: Vec<DotfileConfig>,
-    /// Auto-commit the vault with git after every backup.
-    pub git: Option<bool>,
     /// Target OS. `"auto"` (default) detects at runtime. Accepts `"macos"` or `"linux"`.
     pub os: Option<String>,
     /// Package manager to use when installing deps. `"auto"` (default) detects from PATH.

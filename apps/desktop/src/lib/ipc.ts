@@ -29,7 +29,6 @@ export type Dotfile = {
 
 export type Config = {
   vault_path: string;
-  git: boolean | null;
   os: string | null;
   pkg_manager: string | null;
   dots: Dotfile[];

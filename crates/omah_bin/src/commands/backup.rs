@@ -3,9 +3,9 @@ use std::path::Path;
 
 use anyhow::Result;
 use expand_tilde::ExpandTilde;
-use omah_lib::{config::load_toml_config, git::auto_commit_vault, ops::backup};
+use omah_lib::{config::load_toml_config, ops::backup};
 
-pub fn run(config_path: &Path, no_git: bool, no_exclude: bool) -> Result<()> {
+pub fn run(config_path: &Path, no_exclude: bool) -> Result<()> {
     let mut config = load_toml_config(config_path)?;
 
     // Respect --no-exclude: clear all exclude patterns before backing up
@@ -65,20 +65,6 @@ pub fn run(config_path: &Path, no_git: bool, no_exclude: bool) -> Result<()> {
 
     backup(&config)?;
     println!("Backup complete → {}", config.vault_path);
-
-    // Git auto-commit if enabled and not suppressed
-    if !no_git && config.git.unwrap_or(false) {
-        // Copy config into vault so it's version-controlled alongside dotfiles
-        let config_dest = vault.join(".omah-config.toml");
-        if let Err(e) = std::fs::copy(config_path, &config_dest) {
-            eprintln!("Warning: could not copy config to vault: {e}");
-        }
-
-        match auto_commit_vault(&vault) {
-            Ok(()) => println!("git: vault committed"),
-            Err(e) => eprintln!("Warning: git commit failed: {e}"),
-        }
-    }
 
     Ok(())
 }
