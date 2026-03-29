@@ -12,3 +12,5 @@ apps/desktop/src-tauri/gen/
 
 # Turborepo cache
 .turbo/
+
+plan.md
