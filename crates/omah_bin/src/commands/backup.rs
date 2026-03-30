@@ -5,8 +5,16 @@ use anyhow::Result;
 use expand_tilde::ExpandTilde;
 use omah_lib::{config::load_toml_config, ops::backup};
 
-pub fn run(config_path: &Path, no_exclude: bool) -> Result<()> {
+pub fn run(config_path: &Path, no_exclude: bool, name: Option<&str>) -> Result<()> {
     let mut config = load_toml_config(config_path)?;
+
+    // If a name is given, narrow config to just that dotfile
+    if let Some(n) = name {
+        config.dots.retain(|d| d.name == n);
+        if config.dots.is_empty() {
+            anyhow::bail!("Dotfile '{}' not found in config", n);
+        }
+    }
 
     // Respect --no-exclude: clear all exclude patterns before backing up
     if no_exclude {
@@ -16,8 +24,7 @@ pub fn run(config_path: &Path, no_exclude: bool) -> Result<()> {
     }
 
     // Warn before replacing sources with symlinks — but only for dots where the
-    // source is NOT already a symlink pointing at the vault entry (those are
-    // silently skipped by backup() anyway, no need to alarm the user).
+    // source is NOT already a symlink pointing at the vault entry.
     let vault = config
         .vault_path
         .expand_tilde()
@@ -31,7 +38,6 @@ pub fn run(config_path: &Path, no_exclude: bool) -> Result<()> {
             if !d.symlink.unwrap_or(false) {
                 return false;
             }
-            // Skip dots already correctly symlinked — backup() will no-op them.
             let Ok(source) = d.source.expand_tilde().map(|p| p.to_path_buf()) else {
                 return true;
             };

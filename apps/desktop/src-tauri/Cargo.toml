@@ -1,6 +1,6 @@
 [package]
 name = "omah_desktop"
-version = "1.0.0"
+version = "1.1.0"
 description = "A Tauri App"
 authors = ["brilyyy"]
 edition = "2021"

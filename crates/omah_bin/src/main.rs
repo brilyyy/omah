@@ -79,12 +79,16 @@ fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Commands::Init => commands::init::run(),
-        Commands::Backup { no_exclude } => {
-            commands::backup::run(&config_path, no_exclude)
+        Commands::Backup { no_exclude, name } => {
+            commands::backup::run(&config_path, no_exclude, name.as_deref())
         }
-        Commands::Restore => commands::restore::run(&config_path),
+        Commands::Restore { name } => commands::restore::run(&config_path, name.as_deref()),
         Commands::Status => commands::status::run(&config_path),
         Commands::List => commands::list::run(&config_path),
         Commands::Diff => commands::diff::run(&config_path),
+        Commands::Add { name, source, symlink } => {
+            commands::add::run(&config_path, name, source, symlink)
+        }
+        Commands::Remove { name } => commands::remove::run(&config_path, &name),
     }
 }

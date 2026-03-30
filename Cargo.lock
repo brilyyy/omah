@@ -2461,7 +2461,7 @@ dependencies = [
 
 [[package]]
 name = "omah"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2472,7 +2472,7 @@ dependencies = [
 
 [[package]]
 name = "omah_core"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "omah_lib",
  "omah_structs",
@@ -2480,7 +2480,7 @@ dependencies = [
 
 [[package]]
 name = "omah_desktop"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "omah_core",
@@ -2498,7 +2498,7 @@ dependencies = [
 
 [[package]]
 name = "omah_lib"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "expand-tilde",
@@ -2513,7 +2513,7 @@ dependencies = [
 
 [[package]]
 name = "omah_structs"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "serde",

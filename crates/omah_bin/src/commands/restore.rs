@@ -9,8 +9,20 @@ use omah_lib::{
     ops::restore,
 };
 
-pub fn run(config_path: &Path) -> Result<()> {
-    let config = load_toml_config(config_path)?;
+pub fn run(config_path: &Path, name: Option<&str>) -> Result<()> {
+    let mut config = load_toml_config(config_path)?;
+
+    // If a name is given, narrow config to just that dotfile
+    if let Some(n) = name {
+        config.dots.retain(|d| d.name == n);
+        if config.dots.is_empty() {
+            anyhow::bail!("Dotfile '{}' not found in config", n);
+        }
+        // Single-dotfile restore: skip the setup-steps prompt
+        restore(&config)?;
+        println!("Restore complete ← {}", config.vault_path);
+        return Ok(());
+    }
 
     // Collect all missing deps (deduped) and all pending setup steps
     let all_missing: Vec<String> = {
@@ -36,10 +48,8 @@ pub fn run(config_path: &Path) -> Result<()> {
         .collect();
 
     // Build the ordered action list presented to the user
-    // Each entry is (label, command_string)
     let mut actions: Vec<(String, String)> = Vec::new();
 
-    // Explicit config value takes priority; falls back to auto-detection
     let pm = resolve_pkg_manager(config.pkg_manager.as_deref());
 
     if !all_missing.is_empty() {
@@ -87,7 +97,16 @@ pub fn run(config_path: &Path) -> Result<()> {
             }
             println!();
         } else {
-            eprintln!("Skipping pre-restore steps. Continuing anyway...\n");
+            // Ask before proceeding without the pre-restore steps
+            print!("Continue restore without running setup steps? [y/N] ");
+            io::stdout().flush()?;
+            let mut confirm = String::new();
+            io::stdin().read_line(&mut confirm)?;
+            if !confirm.trim().eq_ignore_ascii_case("y") {
+                println!("Aborted.");
+                return Ok(());
+            }
+            println!();
         }
     }
 

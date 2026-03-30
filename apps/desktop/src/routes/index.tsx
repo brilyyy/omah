@@ -268,6 +268,15 @@ function DotCard({
   disabled: boolean;
 }) {
   const symlinkMutation = useSymlinkMutation(dotIndex, dot.name);
+  const [confirmSymlink, setConfirmSymlink] = useState(false);
+
+  function handleSymlinkChange(checked: boolean) {
+    if (checked) {
+      setConfirmSymlink(true);
+    } else {
+      symlinkMutation.mutate(false);
+    }
+  }
 
   const hasIssues = dot.missing_deps.length > 0 || dot.pending_setup.length > 0;
 
@@ -376,10 +385,33 @@ function DotCard({
           <span className="text-[11px] text-muted-foreground select-none">symlink</span>
           <Switch
             checked={dotfileConfig?.symlink ?? false}
-            onCheckedChange={(checked) => symlinkMutation.mutate(checked)}
+            onCheckedChange={handleSymlinkChange}
             disabled={disabled || symlinkMutation.isPending}
             aria-label="Toggle symlink mode"
           />
+          <AlertDialog open={confirmSymlink} onOpenChange={setConfirmSymlink}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Enable symlink mode for "{dot.name}"?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will back up the source and{" "}
+                  <span className="font-medium text-foreground">replace it with a symlink</span>{" "}
+                  pointing to the vault. Run a restore to undo this.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    symlinkMutation.mutate(true);
+                    setConfirmSymlink(false);
+                  }}
+                >
+                  Enable symlink
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
 
         {/* Actions — visible on hover */}

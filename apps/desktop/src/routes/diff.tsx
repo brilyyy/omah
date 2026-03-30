@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { FileDiff, Loader2, Minus, Pencil, Plus, RefreshCw } from "lucide-react";
+import { FileDiff, Loader2, Minus, Pencil, Plus, RefreshCw, Search } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useDiff } from "@/hooks/use-diff";
 import { type FileChange } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
@@ -11,6 +13,7 @@ export const Route = createFileRoute("/diff")({
 
 function DiffView() {
   const { data: changes, isLoading, error, refetch } = useDiff();
+  const [search, setSearch] = useState("");
 
   const grouped = changes
     ? changes.reduce<Record<string, FileChange[]>>((acc, c) => {
@@ -19,7 +22,18 @@ function DiffView() {
       }, {})
     : null;
 
+  const filteredGrouped = grouped
+    ? Object.fromEntries(
+        Object.entries(grouped).filter(([name]) =>
+          name.toLowerCase().includes(search.toLowerCase()),
+        ),
+      )
+    : null;
+
   const totalChanges = changes?.length ?? 0;
+  const visibleChanges = filteredGrouped
+    ? Object.values(filteredGrouped).reduce((sum, files) => sum + files.length, 0)
+    : 0;
 
   return (
     <div className="flex h-full flex-col">
@@ -35,15 +49,28 @@ function DiffView() {
             </p>
           )}
         </div>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => refetch()}
-          disabled={isLoading}
-          title="Refresh"
-        >
-          <RefreshCw className={cn("size-3.5", isLoading && "animate-spin")} />
-        </Button>
+        <div className="flex items-center gap-2">
+          {totalChanges > 0 && (
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Filter dotfiles…"
+                className="h-7 w-32 pl-7 text-xs focus:w-44 transition-all duration-200"
+              />
+            </div>
+          )}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => refetch()}
+            disabled={isLoading}
+            title="Refresh"
+          >
+            <RefreshCw className={cn("size-3.5", isLoading && "animate-spin")} />
+          </Button>
+        </div>
       </div>
 
       {/* Content */}
@@ -69,9 +96,16 @@ function DiffView() {
           </div>
         )}
 
-        {grouped && totalChanges > 0 && (
+        {filteredGrouped && totalChanges > 0 && visibleChanges === 0 && search && (
+          <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
+            <Search className="size-8 opacity-20" />
+            <p className="text-sm">No dotfiles match "{search}"</p>
+          </div>
+        )}
+
+        {filteredGrouped && visibleChanges > 0 && (
           <div className="space-y-4">
-            {Object.entries(grouped).map(([dotName, files]) => (
+            {Object.entries(filteredGrouped).map(([dotName, files]) => (
               <DotDiff key={dotName} name={dotName} files={files} />
             ))}
           </div>

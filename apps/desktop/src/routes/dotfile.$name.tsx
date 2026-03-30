@@ -17,6 +17,16 @@ import {
   XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -48,6 +58,15 @@ function DotfileDetail() {
   const backupMutation = useBackupOne();
   const restoreMutation = useRestoreOne();
   const symlinkMutation = useSymlinkMutation(dotIndex, name);
+  const [confirmSymlink, setConfirmSymlink] = useState(false);
+
+  function handleSymlinkChange(checked: boolean) {
+    if (checked) {
+      setConfirmSymlink(true);
+    } else {
+      symlinkMutation.mutate(false);
+    }
+  }
 
   const skipStepMutation = useMutation({
     mutationFn: (stepIndex: number) => {
@@ -113,10 +132,33 @@ function DotfileDetail() {
                 <span className="text-[11px] text-muted-foreground select-none">symlink</span>
                 <Switch
                   checked={dot.symlink ?? false}
-                  onCheckedChange={(checked) => symlinkMutation.mutate(checked)}
+                  onCheckedChange={handleSymlinkChange}
                   disabled={isBusy || symlinkMutation.isPending}
                   aria-label="Toggle symlink mode"
                 />
+                <AlertDialog open={confirmSymlink} onOpenChange={setConfirmSymlink}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Enable symlink mode for "{dot.name}"?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will back up the source and{" "}
+                        <span className="font-medium text-foreground">replace it with a symlink</span>{" "}
+                        pointing to the vault. Run a restore to undo this.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => {
+                          symlinkMutation.mutate(true);
+                          setConfirmSymlink(false);
+                        }}
+                      >
+                        Enable symlink
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             </div>
             <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
@@ -551,11 +593,11 @@ function SetupStepRow({
                 type="button"
                 onClick={onSkip}
                 disabled={skipDisabled}
-                title="Mark as done — won't show as pending again"
+                title="Permanently mark as done — persists in config"
                 className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-50 transition-colors"
               >
                 <SkipForward className="size-3" />
-                Skip
+                Mark done
               </button>
             </>
           )}
