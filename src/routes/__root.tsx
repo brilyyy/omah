@@ -1,8 +1,18 @@
-import React from "react";
 import appIcon from "@/assets/icon.png";
-import { createRootRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  Link,
+  Outlet,
+  useRouterState,
+} from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { FileDiff, HardDrive, Info, LayoutList, SlidersHorizontal } from "lucide-react";
+import {
+  FileDiff,
+  HardDrive,
+  Info,
+  LayoutList,
+  SlidersHorizontal,
+} from "lucide-react";
 import { Toaster } from "sonner";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { ipc } from "@/lib/ipc";
@@ -90,9 +100,15 @@ function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <div className="flex items-center gap-2 px-1 py-1">
-              <img src={appIcon} alt="omah" className="size-7 shrink-0 rounded-md" />
+              <img
+                src={appIcon}
+                alt="omah"
+                className="size-7 shrink-0 rounded-md"
+              />
               <div className="flex min-w-0 flex-1 items-center justify-between group-data-[collapsible=icon]:hidden">
-                <span className="text-sm font-semibold tracking-tight">omah</span>
+                <span className="text-sm font-semibold tracking-tight">
+                  omah
+                </span>
                 {version && (
                   <span className="rounded-full bg-sidebar-accent px-1.5 py-0.5 font-mono text-[10px] text-sidebar-accent-foreground">
                     v{version}
@@ -110,10 +126,16 @@ function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {NAV.map(({ to, label, icon: Icon, exact }) => {
-                const isActive = exact ? location === to : location.startsWith(to);
+                const isActive = exact
+                  ? location === to
+                  : location.startsWith(to);
                 return (
                   <SidebarMenuItem key={to}>
-                    <SidebarMenuButton asChild isActive={isActive} tooltip={label}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={isActive}
+                      tooltip={label}
+                    >
                       <Link to={to}>
                         <Icon />
                         <span>{label}</span>
@@ -161,7 +183,9 @@ function AppSidebar() {
                 className="h-7 w-auto gap-1.5 px-2 text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0"
               >
                 <Info className="size-3.5 shrink-0" />
-                <span className="group-data-[collapsible=icon]:hidden">About</span>
+                <span className="group-data-[collapsible=icon]:hidden">
+                  About
+                </span>
               </SidebarMenuButton>
               <div className="group-data-[collapsible=icon]:hidden">
                 <ModeToggle />

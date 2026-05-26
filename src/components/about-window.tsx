@@ -1,5 +1,9 @@
 import { useEffect, useRef } from "react";
-import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from "@tanstack/react-query";
 import { ipc } from "@/lib/ipc";
 import { ThemeProvider, useTheme } from "@/components/theme-provider";
 
@@ -37,7 +41,9 @@ function drawKawungCell(
   const rNarrow = S * 0.21;
   const rWide = S * 0.38;
 
-  const lineColor = isDark ? `rgba(200, 150, 52, ${alpha})` : `rgba(95, 52, 12, ${alpha})`;
+  const lineColor = isDark
+    ? `rgba(200, 150, 52, ${alpha})`
+    : `rgba(95, 52, 12, ${alpha})`;
   const dotColor = isDark
     ? `rgba(225, 175, 65, ${alpha * 1.3})`
     : `rgba(115, 65, 18, ${alpha * 1.3})`;
@@ -72,7 +78,10 @@ function drawKawungCell(
   ctx.fill();
 }
 
-function useBatikAnimation(ref: React.RefObject<HTMLCanvasElement | null>, isDark: boolean) {
+function useBatikAnimation(
+  ref: React.RefObject<HTMLCanvasElement | null>,
+  isDark: boolean,
+) {
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
@@ -82,7 +91,8 @@ function useBatikAnimation(ref: React.RefObject<HTMLCanvasElement | null>, isDar
     const H = canvas.offsetHeight;
     canvas.width = W * dpr;
     canvas.height = H * dpr;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d")!;
+
     ctx.scale(dpr, dpr);
 
     const CELL = 48; // background tile size
@@ -144,7 +154,14 @@ function useBatikAnimation(ref: React.RefObject<HTMLCanvasElement | null>, isDar
       }
 
       // ── 3. Warm ambient center glow ─────────────────────────────────────
-      const ambGlow = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, MED_R * 2.2);
+      const ambGlow = ctx.createRadialGradient(
+        W / 2,
+        H / 2,
+        0,
+        W / 2,
+        H / 2,
+        MED_R * 2.2,
+      );
       if (isDark) {
         ambGlow.addColorStop(0, "rgba(170, 105, 28, 0.28)");
         ambGlow.addColorStop(0.5, "rgba(130, 78, 18, 0.14)");
@@ -194,9 +211,19 @@ function useBatikAnimation(ref: React.RefObject<HTMLCanvasElement | null>, isDar
       ctx.scale(1, 0.58);
 
       // Glowing halo just outside the medallion edge
-      const halo = ctx.createRadialGradient(0, 0, MED_R * 0.72, 0, 0, MED_R * 1.18);
+      const halo = ctx.createRadialGradient(
+        0,
+        0,
+        MED_R * 0.72,
+        0,
+        0,
+        MED_R * 1.18,
+      );
       halo.addColorStop(0, "transparent");
-      halo.addColorStop(0.55, isDark ? "rgba(200, 148, 45, 0.32)" : "rgba(130, 78, 18, 0.22)");
+      halo.addColorStop(
+        0.55,
+        isDark ? "rgba(200, 148, 45, 0.32)" : "rgba(130, 78, 18, 0.22)",
+      );
       halo.addColorStop(1, "transparent");
       ctx.fillStyle = halo;
       ctx.beginPath();
@@ -204,14 +231,18 @@ function useBatikAnimation(ref: React.RefObject<HTMLCanvasElement | null>, isDar
       ctx.fill();
 
       // Crisp outer ring stroke
-      ctx.strokeStyle = isDark ? "rgba(200, 150, 50, 0.42)" : "rgba(110, 65, 18, 0.35)";
+      ctx.strokeStyle = isDark
+        ? "rgba(200, 150, 50, 0.42)"
+        : "rgba(110, 65, 18, 0.35)";
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.arc(0, 0, MED_R, 0, Math.PI * 2);
       ctx.stroke();
 
       // Second inner ring decoration
-      ctx.strokeStyle = isDark ? "rgba(180, 130, 42, 0.22)" : "rgba(110, 65, 18, 0.18)";
+      ctx.strokeStyle = isDark
+        ? "rgba(180, 130, 42, 0.22)"
+        : "rgba(110, 65, 18, 0.18)";
       ctx.lineWidth = 0.8;
       ctx.beginPath();
       ctx.arc(0, 0, MED_R * 0.88, 0, Math.PI * 2);
@@ -229,7 +260,8 @@ function useBatikAnimation(ref: React.RefObject<HTMLCanvasElement | null>, isDar
         }
         // Fade in from bottom, fade out at top
         const lifeFrac = 1 - p.y / H;
-        const alpha = p.alpha * Math.min(lifeFrac * 3, 1) * Math.min((1 - lifeFrac) * 5, 1);
+        const alpha =
+          p.alpha * Math.min(lifeFrac * 3, 1) * Math.min((1 - lifeFrac) * 5, 1);
         ctx.fillStyle = isDark
           ? `rgba(215, 165, 52, ${alpha})`
           : `rgba(125, 75, 18, ${alpha * 0.7})`;
@@ -257,7 +289,8 @@ function AboutContent() {
   const { theme } = useTheme();
   const isDark =
     theme === "dark" ||
-    (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    (theme === "system" &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   useBatikAnimation(canvasRef, isDark);
@@ -323,13 +356,17 @@ function AboutContent() {
   ];
 
   const cardBg = isDark ? "rgba(18, 9, 2, 0.82)" : "rgba(242, 226, 196, 0.85)";
-  const cardBorder = isDark ? "rgba(185, 138, 45, 0.38)" : "rgba(130, 78, 18, 0.32)";
+  const cardBorder = isDark
+    ? "rgba(185, 138, 45, 0.38)"
+    : "rgba(130, 78, 18, 0.32)";
   const cardShadow = isDark
     ? "0 8px 40px rgba(10,5,1,0.7), 0 0 0 1px rgba(185,138,45,0.18), inset 0 1px 0 rgba(220,175,70,0.10)"
     : "0 8px 32px rgba(80,40,8,0.18), 0 0 0 1px rgba(130,78,18,0.14), inset 0 1px 0 rgba(255,240,200,0.8)";
 
   const textPrimary = isDark ? "#f0ddb8" : "#2e1505";
-  const textSecondary = isDark ? "rgba(210,175,95,0.75)" : "rgba(100,55,12,0.75)";
+  const textSecondary = isDark
+    ? "rgba(210,175,95,0.75)"
+    : "rgba(100,55,12,0.75)";
   const textFaint = isDark ? "rgba(175,140,65,0.42)" : "rgba(100,55,12,0.45)";
   const divColor = isDark ? "rgba(180,138,45,0.22)" : "rgba(130,78,18,0.2)";
 
@@ -401,7 +438,9 @@ function AboutContent() {
                     bottom: dy === 1 ? 6 : "auto",
                     left: dx === -1 ? 6 : "auto",
                     right: dx === 1 ? 6 : "auto",
-                    background: isDark ? "rgba(220,175,70,0.5)" : "rgba(255,220,140,0.6)",
+                    background: isDark
+                      ? "rgba(220,175,70,0.5)"
+                      : "rgba(255,220,140,0.6)",
                   }}
                 />
               ))}
@@ -422,7 +461,9 @@ function AboutContent() {
                 fontSize: "2rem",
                 color: textPrimary,
                 letterSpacing: "-0.06em",
-                textShadow: isDark ? "0 2px 12px rgba(210,165,55,0.25)" : "none",
+                textShadow: isDark
+                  ? "0 2px 12px rgba(210,165,55,0.25)"
+                  : "none",
               }}
             >
               ꦲꦺꦴꦩꦃ
@@ -445,7 +486,9 @@ function AboutContent() {
                 <span
                   className="rounded-full px-2.5 py-0.5 font-mono text-[11px] font-medium"
                   style={{
-                    background: isDark ? "rgba(155,100,25,0.30)" : "rgba(140,80,20,0.15)",
+                    background: isDark
+                      ? "rgba(155,100,25,0.30)"
+                      : "rgba(140,80,20,0.15)",
                     color: isDark ? "#ddb84a" : "#7a3c08",
                     border: `1px solid ${isDark ? "rgba(185,138,45,0.38)" : "rgba(140,80,20,0.28)"}`,
                   }}

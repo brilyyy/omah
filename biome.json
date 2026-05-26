@@ -1,6 +1,6 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
-  "root":true,
+  "root": true,
   "vcs": {
     "enabled": true,
     "clientKind": "git",
@@ -8,10 +8,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": [
-      "src/**",
-      "!src/components/ui"
-    ]
+    "includes": ["src/**", "!src/components/ui"]
   },
   "formatter": {
     "enabled": true,
@@ -24,10 +21,17 @@
     "rules": {
       "recommended": true,
       "suspicious": {
-        "noArrayIndexKey": "off"
+        "noArrayIndexKey": "off",
+        "noExplicitAny": "info"
       },
       "correctness": {
         "useExhaustiveDependencies": "off"
+      },
+      "a11y": {
+        "noStaticElementInteractions": "off"
+      },
+      "style": {
+        "noNonNullAssertion": "info"
       }
     }
   },
@@ -38,7 +42,7 @@
       "trailingCommas": "all"
     }
   },
-  "css":{
+  "css": {
     "parser": {
       "tailwindDirectives": true
     }

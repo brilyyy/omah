@@ -42,7 +42,12 @@ import {
 } from "@/hooks/use-backup-restore";
 import { useDeleteDotfile } from "@/hooks/use-delete-dotfile";
 import { useSymlinkMutation } from "@/hooks/use-symlink-mutation";
-import { ipc, type Dotfile, type DotfileStatus, type RunResult } from "@/lib/ipc";
+import {
+  ipc,
+  type Dotfile,
+  type DotfileStatus,
+  type RunResult,
+} from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
@@ -71,7 +76,8 @@ function DotsView() {
 
   const q = search.toLowerCase();
   const filtered = statuses?.filter(
-    (s) => s.name.toLowerCase().includes(q) || s.source.toLowerCase().includes(q),
+    (s) =>
+      s.name.toLowerCase().includes(q) || s.source.toLowerCase().includes(q),
   );
 
   const stats = statuses
@@ -79,8 +85,9 @@ function DotsView() {
         total: statuses.length,
         backedUp: statuses.filter((s) => s.backed_up).length,
         symlinked: statuses.filter((s) => s.symlinked).length,
-        issues: statuses.filter((s) => s.missing_deps.length > 0 || s.pending_setup.length > 0)
-          .length,
+        issues: statuses.filter(
+          (s) => s.missing_deps.length > 0 || s.pending_setup.length > 0,
+        ).length,
       }
     : null;
 
@@ -95,10 +102,16 @@ function DotsView() {
               {stats.backedUp}/{stats.total} backed up
               {stats.symlinked > 0 && ` · ${stats.symlinked} symlinked`}
               {stats.issues > 0 && (
-                <span className="text-yellow-500"> · {stats.issues} with issues</span>
+                <span className="text-yellow-500">
+                  {" "}
+                  · {stats.issues} with issues
+                </span>
               )}
               {search && filtered && (
-                <span className="text-muted-foreground/60"> · showing {filtered.length}</span>
+                <span className="text-muted-foreground/60">
+                  {" "}
+                  · showing {filtered.length}
+                </span>
               )}
             </p>
           )}
@@ -122,7 +135,9 @@ function DotsView() {
             disabled={isLoading}
             title="Refresh"
           >
-            <RefreshCw className={cn("size-3.5", isLoading && "animate-spin")} />
+            <RefreshCw
+              className={cn("size-3.5", isLoading && "animate-spin")}
+            />
           </Button>
 
           {/* Restore All */}
@@ -132,7 +147,11 @@ function DotsView() {
             onClick={() => restoreMutation.mutate()}
             disabled={isBusy || !statuses?.length}
           >
-            {restoreMutation.isPending ? <Loader2 className="animate-spin" /> : <ArrowDownToLine />}
+            {restoreMutation.isPending ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <ArrowDownToLine />
+            )}
             Restore All
           </Button>
 
@@ -151,13 +170,18 @@ function DotsView() {
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Backup All — symlink mode active</AlertDialogTitle>
+                  <AlertDialogTitle>
+                    Backup All — symlink mode active
+                  </AlertDialogTitle>
                   <AlertDialogDescription>
                     One or more dotfiles are configured with{" "}
-                    <span className="font-medium text-foreground">symlink = true</span>. During
-                    backup, the source file or folder will be{" "}
-                    <span className="font-medium text-foreground">deleted</span> and replaced with a
-                    symlink pointing into your vault. This cannot be undone without a restore.
+                    <span className="font-medium text-foreground">
+                      symlink = true
+                    </span>
+                    . During backup, the source file or folder will be{" "}
+                    <span className="font-medium text-foreground">deleted</span>{" "}
+                    and replaced with a symlink pointing into your vault. This
+                    cannot be undone without a restore.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -212,24 +236,29 @@ function DotsView() {
             <HardDrive className="size-10 opacity-30" />
             <p className="text-sm">No dotfiles configured yet.</p>
             <p className="text-xs opacity-70">
-              Use the <span className="font-medium">Add</span> button above or edit your
-              omah-config.toml directly.
+              Use the <span className="font-medium">Add</span> button above or
+              edit your omah-config.toml directly.
             </p>
           </div>
         )}
 
-        {filtered && statuses && statuses.length > 0 && filtered.length === 0 && (
-          <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
-            <Search className="size-8 opacity-20" />
-            <p className="text-sm">No dotfiles match "{search}"</p>
-          </div>
-        )}
+        {filtered &&
+          statuses &&
+          statuses.length > 0 &&
+          filtered.length === 0 && (
+            <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
+              <Search className="size-8 opacity-20" />
+              <p className="text-sm">No dotfiles match "{search}"</p>
+            </div>
+          )}
 
         {filtered && filtered.length > 0 && (
           <div className="space-y-2">
             {filtered.map((dot) => {
-              const dotIndex = config?.dots.findIndex((d) => d.name === dot.name) ?? -1;
-              const dotfileConfig = dotIndex >= 0 ? config?.dots[dotIndex] : undefined;
+              const dotIndex =
+                config?.dots.findIndex((d) => d.name === dot.name) ?? -1;
+              const dotfileConfig =
+                dotIndex >= 0 ? config?.dots[dotIndex] : undefined;
               return (
                 <DotCard
                   key={dot.name}
@@ -324,7 +353,9 @@ function DotCard({
           </div>
 
           {/* Source path */}
-          <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{dot.source}</p>
+          <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
+            {dot.source}
+          </p>
 
           {/* Deps chips — all defined deps, missing ones highlighted */}
           {dotfileConfig?.deps && dotfileConfig.deps.length > 0 && (
@@ -353,7 +384,10 @@ function DotCard({
           {dot.missing_deps
             .filter((d) => !dotfileConfig?.deps?.includes(d))
             .map((dep) => (
-              <p key={dep} className="mt-1.5 flex items-center gap-1 text-xs text-yellow-500">
+              <p
+                key={dep}
+                className="mt-1.5 flex items-center gap-1 text-xs text-yellow-500"
+              >
                 <AlertTriangle className="size-3 shrink-0" />
                 missing: {dep}
               </p>
@@ -377,11 +411,14 @@ function DotCard({
         </Link>
 
         {/* Symlink toggle — always visible */}
+        {/** biome-ignore lint/a11y/useKeyWithClickEvents: We don't need a key here, the click event is handled by the parent */}
         <div
           className="flex shrink-0 items-center gap-1.5 self-start pt-0.5"
           onClick={(e) => e.stopPropagation()}
         >
-          <span className="text-[11px] text-muted-foreground select-none">symlink</span>
+          <span className="text-[11px] text-muted-foreground select-none">
+            symlink
+          </span>
           <Switch
             checked={dotfileConfig?.symlink ?? false}
             onCheckedChange={handleSymlinkChange}
@@ -391,10 +428,14 @@ function DotCard({
           <AlertDialog open={confirmSymlink} onOpenChange={setConfirmSymlink}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Enable symlink mode for "{dot.name}"?</AlertDialogTitle>
+                <AlertDialogTitle>
+                  Enable symlink mode for "{dot.name}"?
+                </AlertDialogTitle>
                 <AlertDialogDescription>
                   This will back up the source and{" "}
-                  <span className="font-medium text-foreground">replace it with a symlink</span>{" "}
+                  <span className="font-medium text-foreground">
+                    replace it with a symlink
+                  </span>{" "}
                   pointing to the vault. Run a restore to undo this.
                 </AlertDialogDescription>
               </AlertDialogHeader>
@@ -436,8 +477,17 @@ function DotCard({
 
           <div className="mx-0.5 h-4 w-px bg-border" />
 
-          <DotfileDialog mode="edit" dotfile={dotfileConfig} dotIndex={dotIndex}>
-            <Button variant="ghost" size="icon-sm" disabled={disabled} title="Edit">
+          <DotfileDialog
+            mode="edit"
+            dotfile={dotfileConfig}
+            dotIndex={dotIndex}
+          >
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              disabled={disabled}
+              title="Edit"
+            >
               <Pencil className="size-3.5" />
             </Button>
           </DotfileDialog>
@@ -458,8 +508,9 @@ function DotCard({
               <AlertDialogHeader>
                 <AlertDialogTitle>Remove "{dot.name}"?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This removes the entry from your omah configuration. Your source files and any
-                  existing vault copy are <strong>not</strong> deleted.
+                  This removes the entry from your omah configuration. Your
+                  source files and any existing vault copy are{" "}
+                  <strong>not</strong> deleted.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -502,7 +553,9 @@ function SetupStepRow({ command }: { command: string }) {
     <div className="mt-1.5 space-y-1">
       <div className="flex items-center gap-1.5">
         <AlertTriangle className="size-3 shrink-0 text-yellow-500/80" />
-        <span className="truncate font-mono text-xs text-yellow-500/80">{command}</span>
+        <span className="truncate font-mono text-xs text-yellow-500/80">
+          {command}
+        </span>
         <button
           type="button"
           onClick={run}
@@ -510,7 +563,11 @@ function SetupStepRow({ command }: { command: string }) {
           title="Run this setup step"
           className="ml-auto shrink-0 flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-yellow-500 hover:bg-yellow-500/10 disabled:opacity-50 transition-colors"
         >
-          {running ? <Loader2 className="size-3 animate-spin" /> : <Play className="size-3" />}
+          {running ? (
+            <Loader2 className="size-3 animate-spin" />
+          ) : (
+            <Play className="size-3" />
+          )}
           Run
         </button>
       </div>
@@ -518,14 +575,22 @@ function SetupStepRow({ command }: { command: string }) {
         <div
           className={cn(
             "rounded px-2 py-1.5 font-mono text-[11px] leading-relaxed",
-            result.success ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400",
+            result.success
+              ? "bg-green-500/10 text-green-400"
+              : "bg-red-500/10 text-red-400",
           )}
         >
           <div className="mb-1 flex items-center gap-1 font-sans font-medium">
-            {result.success ? <CheckCircle className="size-3" /> : <XCircle className="size-3" />}
+            {result.success ? (
+              <CheckCircle className="size-3" />
+            ) : (
+              <XCircle className="size-3" />
+            )}
             {result.success ? "Done" : "Failed"}
           </div>
-          {result.output && <pre className="whitespace-pre-wrap break-all">{result.output}</pre>}
+          {result.output && (
+            <pre className="whitespace-pre-wrap break-all">{result.output}</pre>
+          )}
         </div>
       )}
     </div>

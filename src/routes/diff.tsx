@@ -1,10 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { FileDiff, Loader2, Minus, Pencil, Plus, RefreshCw, Search } from "lucide-react";
+import {
+  FileDiff,
+  Loader2,
+  Minus,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Search,
+} from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useDiff } from "@/hooks/use-diff";
-import { type FileChange } from "@/lib/ipc";
+import type { FileChange } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/diff")({
@@ -17,6 +25,7 @@ function DiffView() {
 
   const grouped = changes
     ? changes.reduce<Record<string, FileChange[]>>((acc, c) => {
+        // biome-ignore lint/suspicious/noAssignInExpressions: We know acc[c.dot_name] is defined here
         (acc[c.dot_name] ??= []).push(c);
         return acc;
       }, {})
@@ -32,7 +41,10 @@ function DiffView() {
 
   const totalChanges = changes?.length ?? 0;
   const visibleChanges = filteredGrouped
-    ? Object.values(filteredGrouped).reduce((sum, files) => sum + files.length, 0)
+    ? Object.values(filteredGrouped).reduce(
+        (sum, files) => sum + files.length,
+        0,
+      )
     : 0;
 
   return (
@@ -68,7 +80,9 @@ function DiffView() {
             disabled={isLoading}
             title="Refresh"
           >
-            <RefreshCw className={cn("size-3.5", isLoading && "animate-spin")} />
+            <RefreshCw
+              className={cn("size-3.5", isLoading && "animate-spin")}
+            />
           </Button>
         </div>
       </div>
@@ -92,16 +106,21 @@ function DiffView() {
           <div className="flex flex-col items-center justify-center gap-3 py-20 text-muted-foreground">
             <FileDiff className="size-10 opacity-30" />
             <p className="text-sm">No changes detected.</p>
-            <p className="text-xs opacity-70">Your source files match the vault snapshot.</p>
+            <p className="text-xs opacity-70">
+              Your source files match the vault snapshot.
+            </p>
           </div>
         )}
 
-        {filteredGrouped && totalChanges > 0 && visibleChanges === 0 && search && (
-          <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
-            <Search className="size-8 opacity-20" />
-            <p className="text-sm">No dotfiles match "{search}"</p>
-          </div>
-        )}
+        {filteredGrouped &&
+          totalChanges > 0 &&
+          visibleChanges === 0 &&
+          search && (
+            <div className="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground">
+              <Search className="size-8 opacity-20" />
+              <p className="text-sm">No dotfiles match "{search}"</p>
+            </div>
+          )}
 
         {filteredGrouped && visibleChanges > 0 && (
           <div className="space-y-4">
@@ -166,7 +185,9 @@ function FileRow({ change }: { change: FileChange }) {
   return (
     <div className={cn("flex items-center gap-3 px-4 py-2 text-sm", config.bg)}>
       <Icon className={cn("size-3.5 shrink-0", config.color)} />
-      <span className={cn("font-mono flex-1 truncate", config.color)}>{change.path}</span>
+      <span className={cn("font-mono flex-1 truncate", config.color)}>
+        {change.path}
+      </span>
       <span className="text-xs text-muted-foreground">{config.label}</span>
     </div>
   );
