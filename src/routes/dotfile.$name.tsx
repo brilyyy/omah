@@ -7,7 +7,6 @@ import {
   ArrowUpFromLine,
   CheckCircle2,
   HardDrive,
-  Link2,
   Loader2,
   PackageCheck,
   Pencil,
@@ -17,24 +16,12 @@ import {
   XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { DotfileDialog } from "@/components/dotfile-dialog";
 import { useConfig } from "@/hooks/use-config";
 import { useStatus } from "@/hooks/use-status";
 import { useBackupOne, useRestoreOne } from "@/hooks/use-backup-restore";
-import { useSymlinkMutation } from "@/hooks/use-symlink-mutation";
 import { useStreamingTerminal, type TerminalLine } from "@/hooks/use-streaming-terminal";
 import { ipc, type SetupStep } from "@/lib/ipc";
 import { queryKeys } from "@/lib/query-keys";
@@ -57,16 +44,6 @@ function DotfileDetail() {
 
   const backupMutation = useBackupOne();
   const restoreMutation = useRestoreOne();
-  const symlinkMutation = useSymlinkMutation(dotIndex, name);
-  const [confirmSymlink, setConfirmSymlink] = useState(false);
-
-  function handleSymlinkChange(checked: boolean) {
-    if (checked) {
-      setConfirmSymlink(true);
-    } else {
-      symlinkMutation.mutate(false);
-    }
-  }
 
   const skipStepMutation = useMutation({
     mutationFn: (stepIndex: number) => {
@@ -127,41 +104,6 @@ function DotfileDetail() {
             <div className="flex items-center gap-2 flex-wrap">
               <h1 className="text-base font-semibold">{dot.name}</h1>
               <StatusBadge status={status} />
-              <div className="flex items-center gap-1.5">
-                <Link2 className="size-2.5 text-muted-foreground" />
-                <span className="text-[11px] text-muted-foreground select-none">symlink</span>
-                <Switch
-                  checked={dot.symlink ?? false}
-                  onCheckedChange={handleSymlinkChange}
-                  disabled={isBusy || symlinkMutation.isPending}
-                  aria-label="Toggle symlink mode"
-                />
-                <AlertDialog open={confirmSymlink} onOpenChange={setConfirmSymlink}>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Enable symlink mode for "{dot.name}"?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will back up the source and{" "}
-                        <span className="font-medium text-foreground">
-                          replace it with a symlink
-                        </span>{" "}
-                        pointing to the vault. Run a restore to undo this.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => {
-                          symlinkMutation.mutate(true);
-                          setConfirmSymlink(false);
-                        }}
-                      >
-                        Enable symlink
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
             </div>
             <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">{dot.source}</p>
           </div>

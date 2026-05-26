@@ -55,12 +55,12 @@ function RootLayout() {
   return (
     <ThemeProvider storageKey="omah-theme">
       <TooltipProvider>
-        <SidebarProvider>
+        <SidebarProvider defaultOpen={false}>
           <AppSidebar />
           <SidebarInset className="overflow-hidden">
             <Outlet />
           </SidebarInset>
-          <Toaster position="bottom-right" richColors />
+          <Toaster position="bottom-right" />
           <DonationDialog />
         </SidebarProvider>
       </TooltipProvider>

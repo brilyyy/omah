@@ -49,7 +49,6 @@ Default location: `~/.config/omah/omah-config.toml`. Override with `--config <pa
 
 ```toml
 vault_path = "~/Documents/OmahVault"
-git = true                # auto-commit the vault after every backup (optional)
 os = "auto"               # "auto" (detect) | "macos" | "linux" — optional
 pkg_manager = "auto"      # "auto" (detect) | "brew" | "apt-get" | "pacman" | "dnf" | "zypper"
 
@@ -61,12 +60,11 @@ deps = ["zsh"]
 [[dots]]
 name = "Neovim"
 source = "~/.config/nvim"
-symlink = true                  # backup replaces source with a symlink into the vault
 deps = ["nvim", "git", "ripgrep"]
 exclude = ["*.log", ".git"]     # glob patterns — skipped when copying the directory
 setup = [
   # skipped if ~/.local/share/nvim already exists
-  { check = "~/.local/share/nvim", install = "git clone --depth 1 https://github.com/AstroNvim/template ~/.config/nvim" }
+  { check = "dir:~/.local/share/nvim", install = "git clone --depth 1 https://github.com/AstroNvim/template ~/.config/nvim" }
 ]
 
 [[dots]]
@@ -80,15 +78,30 @@ source = "~/.my-custom-rc"
 | Field | Type | Description |
 | --- | --- | --- |
 | `vault_path` | string | Where dotfiles are stored (supports `~`) |
-| `git` | bool | When `true`, `omah backup` auto-commits the vault (including config file) after copying |
 | `os` | string | Target OS. `"auto"` (default) detects at runtime. Accepts `"macos"` or `"linux"` |
 | `pkg_manager` | string | Package manager for installing deps. `"auto"` detects from PATH. Accepts `"brew"`, `"apt-get"`, `"pacman"`, `"dnf"`, `"zypper"` |
 | `name` | string | Human-readable label, also used as the vault subfolder name |
 | `source` | string | Path to the dotfile/directory on your machine (supports `~`) |
 | `symlink` | bool | When `true`, backup moves the source into the vault and leaves a symlink behind |
-| `deps` | string[] | Binaries that must be in PATH (checked at restore time) |
-| `setup` | array | Shell commands to run before restore; each entry has `install` (required) and optional `check` (path — step is skipped if it already exists) |
+| `deps` | string[] | Binaries or shell functions that must be available (e.g. `nvm`). Checked via PATH and interactive shell. |
+| `setup` | array | Shell commands to run before restore; each entry has `install` (required) and optional `check` (see below) |
 | `exclude` | string[] | Glob patterns for files/dirs to skip when copying a source directory (e.g. `*.log`, `.git`) |
+
+#### `check` field
+
+Controls when a setup step is considered done and skipped:
+
+| Value | Meaning |
+| --- | --- |
+| `bin:<name>` | Binary or shell function must be available (PATH + interactive shell) |
+| `file:<path>` | File must exist (supports `~`) |
+| `dir:<path>` | Directory must exist (supports `~`) |
+| `cmd:<shell>` | Shell snippet must exit 0 |
+| `out:<expected>` | Runs the `install` command; done when trimmed stdout equals `expected` |
+| `skip` | Always considered done (never runs) |
+| bare `nvim` | Backward-compat: binary check |
+| bare `/…` or `~/…` | Backward-compat: path existence check |
+| missing / empty | Always pending (runs every time) |
 
 Each dotfile is stored at `vault/{name}/{filename}` — the original filename is preserved inside a named folder.
 
@@ -104,22 +117,10 @@ Creates `~/.config/omah/` and scaffolds a default `omah-config.toml` if one does
 
 Copies every dotfile in `[[dots]]` from its `source` into the vault, skipping any paths matched by `exclude` patterns.
 
-If `git = true` is set in the config (and `--no-git` is not passed), omah will copy `omah-config.toml` into the vault as `.omah-config.toml` and then auto-commit everything together.
-
-If any dotfile has `symlink = true`, omah will list those entries and ask for confirmation before replacing the source with a symlink:
-
-```text
-The following dotfiles will have their source replaced with a symlink:
-  - Neovim
-
-Continue? [y/N]
-```
-
 **Flags:**
 
 | Flag | Description |
 | --- | --- |
-| `--no-git` | Skip the git auto-commit even if `git = true` in config |
 | `--no-exclude` | Ignore all `exclude` patterns (copy everything) |
 
 ### `omah restore`
@@ -189,15 +190,18 @@ bun run hooks   # activate commit-msg hook (enforces Conventional Commits)
 
 | Command | Description |
 | --- | --- |
-| `bun run check` | Fast compile check |
-| `bun run test` | Run all workspace tests |
-| `bun run lint` | Run Clippy (warnings as errors) |
-| `bun run fmt` | Auto-format all code |
-| `bun run build` | Build release binary |
+| `bun run cargo:check` | Fast compile check (all workspace crates) |
+| `bun run cargo:test` | Run all workspace tests |
+| `bun run cargo:lint` | Run Clippy (warnings as errors) |
+| `bun run cargo:fmt` | Auto-format Rust code |
+| `bun run cargo:build` | Build release binary |
 | `bun run cli:install` | Build + copy binary to `/usr/local/bin/omah` |
-| `bun run clean` | Remove build artifacts |
-| `bun run desktop` | Run the Tauri desktop app in dev mode |
-| `bun run desktop:build` | Build the Tauri desktop app for release |
+| `bun run cargo:clean` | Remove build artifacts |
+| `bun run dev` | Run Vite dev server (frontend only) |
+| `bun run tauri dev` | Run the Tauri desktop app in dev mode |
+| `bun run build` | Build frontend for production |
+| `bun run tauri build` | Build the Tauri desktop app for release |
+| `bun run check` | Biome lint + format check on `src/` |
 | `bacon` | Watch mode: re-runs `cargo check` on save |
 | `bacon test` | Watch mode: re-runs tests on save |
 
@@ -221,33 +225,22 @@ The `commit-msg` hook validates this automatically after `bun run hooks`.
 
 ### CI
 
-Every push to `master`/`main` and every pull request runs two jobs in parallel:
-
-| Job | What it does |
+| Trigger | Jobs |
 | --- | --- |
-| `test` | `cargo test --workspace --locked` |
-| `build-check` | `cargo build --workspace --locked` |
-
-Both must pass before a release is created.
+| Every push (any branch) | `cargo test --workspace --exclude omah_desktop --locked` |
+| Tag `v*` on `master`/`main` | Build CLI (3 platforms) + Desktop bundles (3 platforms) → GitHub Release |
 
 ### Releasing
 
-**Automatically** — bump the version in `crates/omah_bin/Cargo.toml` and push to `master`:
+Bump the version in `crates/omah_bin/Cargo.toml`, commit, then push a `v*` tag:
 
 ```sh
-# 1. edit crates/omah_bin/Cargo.toml  →  version = "1.4.0"
-git add crates/omah_bin/Cargo.toml
+# 1. Edit crates/omah_bin/Cargo.toml  →  version = "1.4.0"
 git commit -m "chore: bump version to 1.4.0"
-git push origin master
+bun run tag   # reads version from Cargo.toml, creates + pushes v1.4.0 tag
 ```
 
-GitHub Actions detects that `v1.4.0` doesn't exist yet, builds for all three platforms, and publishes a GitHub Release with auto-generated notes. No manual tagging required.
-
-**Manually** — push a `v*` tag directly to trigger the release workflow:
-
-```sh
-bun run tag   # reads version from Cargo.toml, creates tag, pushes it
-```
+GitHub Actions builds CLI binaries and desktop bundles for all platforms and publishes a GitHub Release with auto-generated notes.
 
 #### Release targets
 
@@ -264,9 +257,12 @@ bun run tag   # reads version from Cargo.toml, creates tag, pushes it
 ```text
 crates/
 ├── omah_structs/   # Core data types (OmahConfig, DotfileConfig, SetupStep)
-├── omah_lib/       # Business logic: config loading, backup, restore, status, diff, git
+├── omah_lib/       # Business logic: config loading, backup, restore, status, diff, deps
 ├── omah_core/      # Re-exports omah_lib + omah_structs as a single crate
 └── omah_bin/       # CLI entry point (clap)
+
+src/                # React frontend (TanStack Router/Query, shadcn/ui)
+src-tauri/          # Tauri v2 backend — exposes omah_core via Tauri commands
 ```
 
 ---
@@ -301,7 +297,7 @@ crates/
 - [x] Inline diff viewer
 - [x] Add / edit dotfile (name, source, symlink, deps, setup steps, exclude patterns)
 - [x] Setup step runner with streaming terminal output
-- [x] Symlink toggle in dotfile detail view
+- [x] Symlink toggle in dotfile detail view (backend supported; UI temporarily disabled)
 - [x] Donation dialog
 - [ ] Prebuilt `.dmg` (macOS) and `.AppImage` (Linux) in GitHub Releases
 - [ ] Auto-update — notify and apply new releases in-app

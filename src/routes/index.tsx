@@ -6,7 +6,6 @@ import {
   CheckCircle,
   CheckCircle2,
   HardDrive,
-  Link2,
   Loader2,
   Pencil,
   Play,
@@ -30,7 +29,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Switch } from "@/components/ui/switch";
 import { DotfileDialog } from "@/components/dotfile-dialog";
 import { useConfig } from "@/hooks/use-config";
 import { useStatus } from "@/hooks/use-status";
@@ -41,7 +39,6 @@ import {
   useRestoreOne,
 } from "@/hooks/use-backup-restore";
 import { useDeleteDotfile } from "@/hooks/use-delete-dotfile";
-import { useSymlinkMutation } from "@/hooks/use-symlink-mutation";
 import {
   ipc,
   type Dotfile,
@@ -59,8 +56,6 @@ function DotsView() {
 
   const { data: statuses, isLoading, error, refetch } = useStatus();
   const { data: config } = useConfig();
-
-  const hasSymlinkedDots = config?.dots.some((d) => d.symlink) ?? false;
 
   const backupMutation = useBackupAll();
   const restoreMutation = useRestoreAll();
@@ -100,7 +95,6 @@ function DotsView() {
           {stats && (
             <p className="mt-0.5 text-sm text-muted-foreground">
               {stats.backedUp}/{stats.total} backed up
-              {stats.symlinked > 0 && ` · ${stats.symlinked} symlinked`}
               {stats.issues > 0 && (
                 <span className="text-yellow-500">
                   {" "}
@@ -155,57 +149,18 @@ function DotsView() {
             Restore All
           </Button>
 
-          {/* Backup All — confirm if any dotfiles use symlink mode */}
-          {hasSymlinkedDots ? (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button size="sm" disabled={isBusy || !statuses?.length}>
-                  {backupMutation.isPending ? (
-                    <Loader2 className="animate-spin" />
-                  ) : (
-                    <ArrowUpFromLine />
-                  )}
-                  Backup All
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    Backup All — symlink mode active
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    One or more dotfiles are configured with{" "}
-                    <span className="font-medium text-foreground">
-                      symlink = true
-                    </span>
-                    . During backup, the source file or folder will be{" "}
-                    <span className="font-medium text-foreground">deleted</span>{" "}
-                    and replaced with a symlink pointing into your vault. This
-                    cannot be undone without a restore.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => backupMutation.mutate()}>
-                    Backup anyway
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          ) : (
-            <Button
-              size="sm"
-              onClick={() => backupMutation.mutate()}
-              disabled={isBusy || !statuses?.length}
-            >
-              {backupMutation.isPending ? (
-                <Loader2 className="animate-spin" />
-              ) : (
-                <ArrowUpFromLine />
-              )}
-              Backup All
-            </Button>
-          )}
+          <Button
+            size="sm"
+            onClick={() => backupMutation.mutate()}
+            disabled={isBusy || !statuses?.length}
+          >
+            {backupMutation.isPending ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <ArrowUpFromLine />
+            )}
+            Backup All
+          </Button>
 
           <DotfileDialog mode="add">
             <Button variant="outline" size="sm">
@@ -298,17 +253,6 @@ function DotCard({
   onDelete: () => void;
   disabled: boolean;
 }) {
-  const symlinkMutation = useSymlinkMutation(dotIndex, dot.name);
-  const [confirmSymlink, setConfirmSymlink] = useState(false);
-
-  function handleSymlinkChange(checked: boolean) {
-    if (checked) {
-      setConfirmSymlink(true);
-    } else {
-      symlinkMutation.mutate(false);
-    }
-  }
-
   const hasIssues = dot.missing_deps.length > 0 || dot.pending_setup.length > 0;
 
   // Left accent color
@@ -344,12 +288,6 @@ function DotCard({
               {dot.name}
             </span>
             <StatusBadge dot={dot} />
-            {dot.symlinked && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[11px] text-blue-400">
-                <Link2 className="size-2.5" />
-                symlink
-              </span>
-            )}
           </div>
 
           {/* Source path */}
@@ -409,50 +347,6 @@ function DotCard({
               </p>
             )}
         </Link>
-
-        {/* Symlink toggle — always visible */}
-        {/** biome-ignore lint/a11y/useKeyWithClickEvents: We don't need a key here, the click event is handled by the parent */}
-        <div
-          className="flex shrink-0 items-center gap-1.5 self-start pt-0.5"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <span className="text-[11px] text-muted-foreground select-none">
-            symlink
-          </span>
-          <Switch
-            checked={dotfileConfig?.symlink ?? false}
-            onCheckedChange={handleSymlinkChange}
-            disabled={disabled || symlinkMutation.isPending}
-            aria-label="Toggle symlink mode"
-          />
-          <AlertDialog open={confirmSymlink} onOpenChange={setConfirmSymlink}>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  Enable symlink mode for "{dot.name}"?
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will back up the source and{" "}
-                  <span className="font-medium text-foreground">
-                    replace it with a symlink
-                  </span>{" "}
-                  pointing to the vault. Run a restore to undo this.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={() => {
-                    symlinkMutation.mutate(true);
-                    setConfirmSymlink(false);
-                  }}
-                >
-                  Enable symlink
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
 
         {/* Actions — visible on hover */}
         <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">

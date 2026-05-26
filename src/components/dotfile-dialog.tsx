@@ -26,17 +26,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { ipc, type Dotfile } from "@/lib/ipc";
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
-const CHECK_TYPES = ["none", "bin", "file", "dir", "cmd", "skip"] as const;
+const CHECK_TYPES = ["none", "bin", "file", "dir", "cmd", "out", "skip"] as const;
 type CheckType = (typeof CHECK_TYPES)[number];
 
-const CHECK_META: Record<CheckType, { label: string; placeholder: string; hint: string }> = {
+const CHECK_META: Record<
+  CheckType,
+  { label: string; placeholder: string; hint: string }
+> = {
   none: { label: "No check", placeholder: "", hint: "Step always shows as pending" },
-  bin: { label: "Binary in PATH", placeholder: "nvim", hint: "Skip when binary is found in PATH" },
+  bin: { label: "Binary / function", placeholder: "nvim", hint: "Skip when binary or shell function is found" },
   file: {
     label: "File exists",
     placeholder: "~/.config/nvim/init.lua",
@@ -51,6 +53,11 @@ const CHECK_META: Record<CheckType, { label: string; placeholder: string; hint: 
     label: "Command exits 0",
     placeholder: "ls ~/.local/share/nvim | grep lazy",
     hint: "Skip when the shell command exits 0",
+  },
+  out: {
+    label: "Output matches",
+    placeholder: "ok",
+    hint: "Skip when install command's stdout matches expected value",
   },
   skip: { label: "Always skip", placeholder: "", hint: "Permanently mark this step as done" },
 };
@@ -73,12 +80,18 @@ type DotfileFormValues = z.infer<typeof dotfileSchema>;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Parse a stored `"bin:nvim"` / `"file:~/.zshrc"` / bare string into type + value. */
-function parseCheck(raw: string | null | undefined): { checkType: CheckType; checkValue: string } {
+/** Parse a stored check string into form fields. */
+function parseCheck(raw: string | null | undefined): {
+  checkType: CheckType;
+  checkValue: string;
+} {
   if (!raw) return { checkType: "none", checkValue: "" };
   if (raw === "skip" || raw.startsWith("skip:")) return { checkType: "skip", checkValue: "" };
+  if (raw.startsWith("out:")) {
+    return { checkType: "out", checkValue: raw.slice(4) };
+  }
   for (const t of CHECK_TYPES) {
-    if (t !== "none" && t !== "skip" && raw.startsWith(`${t}:`)) {
+    if (t !== "none" && t !== "skip" && t !== "out" && raw.startsWith(`${t}:`)) {
       return { checkType: t, checkValue: raw.slice(t.length + 1) };
     }
   }
@@ -89,10 +102,14 @@ function parseCheck(raw: string | null | undefined): { checkType: CheckType; che
   return { checkType: "bin", checkValue: raw };
 }
 
-/** Serialize type + value back to `"bin:nvim"` etc. */
+/** Serialize type + value back to `"bin:nvim"` / `"out:ok"` etc. */
 function serializeCheck(type: CheckType, value: string): string | null {
   if (type === "none") return null;
   if (type === "skip") return "skip";
+  if (type === "out") {
+    if (!value.trim()) return null;
+    return `out:${value.trim()}`;
+  }
   if (!value.trim()) return null;
   return `${type}:${value.trim()}`;
 }
@@ -105,8 +122,8 @@ function dotfileToFormValues(dotfile: Dotfile): DotfileFormValues {
     deps: dotfile.deps?.join(", ") ?? "",
     setup:
       dotfile.setup?.map((s) => ({
-        ...parseCheck(s.check),
         install: s.install,
+        ...parseCheck(s.check),
       })) ?? [],
   };
 }
@@ -318,27 +335,6 @@ function DotfileFormDialog({ mode, dotfile, dotIndex, onClose }: DotfileFormDial
                   </Button>
                 </div>
                 <FieldError field={field} />
-              </div>
-            )}
-          </form.Field>
-
-          {/* Symlink */}
-          <form.Field name="symlink">
-            {(field) => (
-              <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
-                <div>
-                  <Label htmlFor="field-symlink" className="cursor-pointer font-normal">
-                    Symlink mode
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Replace source with a symlink to the vault copy
-                  </p>
-                </div>
-                <Switch
-                  id="field-symlink"
-                  checked={field.state.value}
-                  onCheckedChange={(v) => field.handleChange(v)}
-                />
               </div>
             )}
           </form.Field>
