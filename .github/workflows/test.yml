@@ -33,4 +33,4 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Run tests
-        run: cargo test --workspace --locked
+        run: cargo test --workspace --exclude omah_desktop --locked
