@@ -1,13 +1,9 @@
-name: CI / Release
+name: Release
 
 on:
   push:
-    branches:
-      - main
-      - master
     tags:
       - "v*"
-  pull_request:
     branches:
       - main
       - master
@@ -17,62 +13,15 @@ env:
   RUST_BACKTRACE: 1
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+  # ── CLI binaries ─────────────────────────────────────────────────────────────
 
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-test-
-            ${{ runner.os }}-cargo-
-
-      - name: Run tests
-        run: cargo test --workspace --locked
-
-  build-check:
-    name: Build Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-build-check-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-build-check-
-            ${{ runner.os }}-cargo-
-
-      - name: Build check
-        run: cargo build --workspace --locked
-
-  # ── CLI binaries ────────────────────────────────────────────────────────────
-
-  build:
+  build-cli:
     name: Build CLI ${{ matrix.name }}
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: test
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -82,29 +31,16 @@ jobs:
             os: ubuntu-latest
             target: x86_64-unknown-linux-musl
             apt_packages: musl-tools
-            binary: omah
-            archive_ext: tar.gz
 
           - name: macos-aarch64
             os: macos-latest
             target: aarch64-apple-darwin
             apt_packages: ""
-            binary: omah
-            archive_ext: tar.gz
 
           - name: macos-x86_64
             os: macos-13
             target: x86_64-apple-darwin
             apt_packages: ""
-            binary: omah
-            archive_ext: tar.gz
-
-          # - name: windows-x86_64
-          #   os: windows-latest
-          #   target: x86_64-pc-windows-msvc
-          #   apt_packages: ""
-          #   binary: omah.exe
-          #   archive_ext: zip
 
     steps:
       - uses: actions/checkout@v4
@@ -124,36 +60,23 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-release-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-cli-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-release-${{ matrix.target }}-
-            ${{ runner.os }}-cargo-release-
+            ${{ runner.os }}-cargo-cli-${{ matrix.target }}-
+            ${{ runner.os }}-cargo-cli-
 
-      - name: Build release binary
+      - name: Build
         run: cargo build --bin omah --target ${{ matrix.target }} --release --locked
 
-      - name: Strip binary (Unix)
-        if: matrix.archive_ext == 'tar.gz'
-        run: strip target/${{ matrix.target }}/release/${{ matrix.binary }}
+      - name: Strip binary
+        run: strip target/${{ matrix.target }}/release/omah
 
-      - name: Package (Unix)
+      - name: Package
         id: package
-        if: matrix.archive_ext == 'tar.gz'
         run: |
-          VERSION="${{ github.ref_name }}"
-          ARCHIVE="omah-${VERSION}-${{ matrix.target }}.tar.gz"
-          tar -czf "${ARCHIVE}" -C "target/${{ matrix.target }}/release" "${{ matrix.binary }}"
+          ARCHIVE="omah-${{ github.ref_name }}-${{ matrix.target }}.tar.gz"
+          tar -czf "${ARCHIVE}" -C "target/${{ matrix.target }}/release" omah
           echo "archive=${ARCHIVE}" >> $GITHUB_OUTPUT
-
-      # - name: Package (Windows)
-      #   id: package
-      #   if: matrix.archive_ext == 'zip'
-      #   shell: pwsh
-      #   run: |
-      #     $version = "${{ github.ref_name }}"
-      #     $archive = "omah-${version}-${{ matrix.target }}.zip"
-      #     Compress-Archive -Path "target/${{ matrix.target }}/release/${{ matrix.binary }}" -DestinationPath $archive
-      #     "archive=${archive}" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - uses: actions/upload-artifact@v4
         with:
@@ -162,12 +85,11 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # ── Desktop app (Tauri) ─────────────────────────────────────────────────────
+  # ── Desktop app (Tauri) ──────────────────────────────────────────────────────
 
   build-desktop:
     name: Build Desktop ${{ matrix.name }}
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: test
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -215,7 +137,7 @@ jobs:
       - name: Install frontend dependencies
         run: bun install
 
-      - name: Build Tauri app
+      - name: Build
         run: bun run build
 
       - name: Upload macOS dmg
@@ -236,12 +158,12 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-  # ── GitHub Release ──────────────────────────────────────────────────────────
+  # ── GitHub Release ────────────────────────────────────────────────────────────
 
   release:
     name: Create Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, build-desktop]
+    needs: [build-cli, build-desktop]
     runs-on: ubuntu-latest
     permissions:
       contents: write
