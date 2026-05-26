@@ -1,187 +1,12 @@
 use expand_tilde::ExpandTilde;
 use omah_structs::{DotfileConfig, SetupStep};
 
+use crate::constants::PKG_TO_BIN;
+
 /// Returns the declared dep list (empty if field omitted).
 pub fn declared_deps(dot: &DotfileConfig) -> &[String] {
     dot.deps.as_deref().unwrap_or(&[])
 }
-
-/// Package name → binary name mapping for packages whose installed binary
-/// differs from the package name. Lookup is case-insensitive.
-///
-/// Format: `("package-name", "binary-name")` — multiple package aliases may
-/// map to the same binary (add them as separate entries).
-pub const PKG_TO_BIN: &[(&str, &str)] = &[
-    // ── Editors ──────────────────────────────────────────────────────────────
-    ("neovim", "nvim"),
-    ("vim-nox", "vim"),
-    ("gvim", "vim"),
-    ("emacs-nox", "emacs"),
-    ("emacs-gtk", "emacs"),
-    ("code", "code"),              // VS Code (snap/apt name)
-    ("visual-studio-code", "code"),
-    ("helix", "hx"),
-    ("micro-editor", "micro"),
-    ("kakoune", "kak"),
-    // ── Search / file tools ──────────────────────────────────────────────────
-    ("ripgrep", "rg"),
-    ("fd-find", "fd"),             // Debian/Ubuntu apt name
-    ("fd-rs", "fd"),
-    ("bat-cat", "bat"),            // some distros
-    ("the_silver_searcher", "ag"),
-    ("silversearcher-ag", "ag"),   // Debian apt name
-    ("ugrep", "ugrep"),
-    ("hypergrep", "hgrep"),
-    ("fzf", "fzf"),
-    ("skim", "sk"),
-    ("broot", "br"),
-    ("lsd", "lsd"),
-    ("eza", "eza"),
-    ("exa", "eza"),                // deprecated alias
-    ("tre-command", "tre"),
-    ("dust", "dust"),
-    ("dua-cli", "dua"),
-    ("ncdu", "ncdu"),
-    ("tokei", "tokei"),
-    ("loc", "loc"),
-    // ── Shell & navigation ───────────────────────────────────────────────────
-    ("nushell", "nu"),
-    ("zoxide", "zoxide"),
-    ("fish", "fish"),
-    ("zsh", "zsh"),
-    ("bash", "bash"),
-    ("dash", "dash"),
-    ("elvish", "elvish"),
-    ("xonsh", "xonsh"),
-    ("oil-shell", "osh"),
-    ("carapace-bin", "carapace"),
-    ("atuin", "atuin"),
-    ("mcfly", "mcfly"),
-    ("direnv", "direnv"),
-    ("starship", "starship"),
-    ("oh-my-posh", "oh-my-posh"),
-    // ── Terminal multiplexers ─────────────────────────────────────────────────
-    ("tmux", "tmux"),
-    ("zellij", "zellij"),
-    ("screen", "screen"),
-    ("byobu", "byobu"),
-    // ── TUI system tools ──────────────────────────────────────────────────────
-    ("bottom", "btm"),
-    ("btop", "btop"),
-    ("htop", "htop"),
-    ("gtop", "gtop"),
-    ("glances", "glances"),
-    ("procs", "procs"),
-    ("bandwhich", "bandwhich"),
-    ("nethogs", "nethogs"),
-    ("iftop", "iftop"),
-    ("gping", "gping"),
-    ("dog", "dog"),
-    ("xh", "xh"),
-    ("curlie", "curlie"),
-    ("httpie", "http"),            // httpie → http binary
-    ("http", "http"),
-    // ── Diff / VCS ───────────────────────────────────────────────────────────
-    ("difftastic", "difft"),
-    ("delta", "delta"),
-    ("git-delta", "delta"),
-    ("diff-so-fancy", "diff-so-fancy"),
-    ("lazygit", "lazygit"),
-    ("gitui", "gitui"),
-    ("tig", "tig"),
-    ("gh", "gh"),                  // GitHub CLI
-    ("glab", "glab"),              // GitLab CLI
-    ("hub", "hub"),
-    // ── Language runtimes & package managers ─────────────────────────────────
-    ("nodejs", "node"),
-    ("node-js", "node"),
-    ("nodejs-lts", "node"),
-    ("python", "python3"),
-    ("python3-pip", "python3"),
-    ("python3", "python3"),
-    ("pyenv", "pyenv"),
-    ("pipx", "pipx"),
-    ("poetry", "poetry"),
-    ("uv", "uv"),
-    ("rye", "rye"),
-    ("ruby", "ruby"),
-    ("rbenv", "rbenv"),
-    ("rvm", "rvm"),
-    ("rustup", "rustup"),
-    ("cargo", "cargo"),
-    ("go", "go"),
-    ("golang", "go"),
-    ("java", "java"),
-    ("openjdk", "java"),
-    ("temurin", "java"),
-    ("deno", "deno"),
-    ("bun", "bun"),
-    ("pnpm", "pnpm"),
-    ("yarn", "yarn"),
-    ("lua", "lua"),
-    ("luarocks", "luarocks"),
-    ("php", "php"),
-    ("composer", "composer"),
-    ("perl", "perl"),
-    ("elixir", "elixir"),
-    ("erlang", "erl"),
-    ("erlang-solutions", "erl"),
-    ("scala", "scala"),
-    ("kotlin", "kotlin"),
-    ("swift", "swift"),
-    ("dart", "dart"),
-    ("flutter", "flutter"),
-    ("zig", "zig"),
-    ("nim", "nim"),
-    ("crystal", "crystal"),
-    ("haskell-platform", "ghc"),
-    ("ghc", "ghc"),
-    ("stack", "stack"),
-    ("cabal-install", "cabal"),
-    ("ocaml", "ocaml"),
-    ("opam", "opam"),
-    ("dotnet", "dotnet"),
-    ("dotnet-sdk", "dotnet"),
-    // ── Build tools ──────────────────────────────────────────────────────────
-    ("cmake", "cmake"),
-    ("make", "make"),
-    ("ninja-build", "ninja"),
-    ("ninja", "ninja"),
-    ("meson", "meson"),
-    ("autoconf", "autoconf"),
-    ("automake", "automake"),
-    ("pkg-config", "pkg-config"),
-    ("pkgconf", "pkg-config"),
-    // ── Containers & cloud ───────────────────────────────────────────────────
-    ("docker", "docker"),
-    ("docker-ce", "docker"),
-    ("podman", "podman"),
-    ("kubectl", "kubectl"),
-    ("kubernetes-cli", "kubectl"), // Homebrew name
-    ("helm", "helm"),
-    ("k9s", "k9s"),
-    ("terraform", "terraform"),
-    ("pulumi", "pulumi"),
-    ("ansible", "ansible"),
-    ("aws-cli", "aws"),
-    ("awscli", "aws"),
-    ("azure-cli", "az"),
-    ("google-cloud-sdk", "gcloud"),
-    ("gcloud", "gcloud"),
-    ("flyctl", "flyctl"),
-    ("wrangler", "wrangler"),
-    // ── Fonts / misc ─────────────────────────────────────────────────────────
-    ("stow", "stow"),
-    ("chezmoi", "chezmoi"),
-    ("mackup", "mackup"),
-    ("antibody", "antibody"),
-    ("antigen", "antigen"),
-    ("zinit", "zinit"),
-    ("sheldon", "sheldon"),
-    ("topgrade", "topgrade"),
-    ("mas", "mas"),               // Mac App Store CLI
-    ("mas-cli", "mas"),
-];
 
 /// Maps a package name to the binary it installs.
 /// Falls back to the package name itself when no mapping is found.
@@ -194,9 +19,25 @@ fn pkg_to_bin(pkg: &str) -> &str {
         .unwrap_or(pkg)
 }
 
-/// True if the binary exists in PATH.
+/// True if `name` resolves — binary in PATH or shell function/alias sourced
+/// in rc files (e.g. nvm). Fast path: `which`. Slow path: interactive
+/// `$SHELL -i -c "command -v <name>"`, only runs when `which` misses.
+fn command_available(name: &str) -> bool {
+    if which::which(name).is_ok() {
+        return true;
+    }
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "bash".to_string());
+    std::process::Command::new(&shell)
+        .args(["-i", "-c", &format!("command -v {name}")])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
 pub fn is_installed(dep: &str) -> bool {
-    which::which(pkg_to_bin(dep)).is_ok()
+    command_available(pkg_to_bin(dep))
 }
 
 /// Returns declared deps that are not currently installed.
@@ -231,24 +72,31 @@ pub fn resolve_pkg_manager(configured: Option<&str>) -> Option<String> {
 ///
 /// | Stored value          | Meaning                                      |
 /// |---------------------- |--------------------------------------------- |
-/// | `bin:nvim`            | `nvim` must be found in PATH                 |
-/// | `file:~/.zshrc`       | the file must exist                          |
-/// | `dir:~/.config/nvim`  | the directory must exist                     |
-/// | `cmd:ls ... \| grep …` | shell command must exit 0                   |
-/// | bare `nvim`           | backward-compat: binary check                |
-/// | bare `/…` or `~/…`    | backward-compat: path existence check        |
-/// | missing / empty       | always pending (no way to verify)            |
+/// | `bin:nvim`               | `nvim` must be found in PATH / shell        |
+/// | `file:~/.zshrc`          | the file must exist                         |
+/// | `dir:~/.config/nvim`     | the directory must exist                    |
+/// | `cmd:ls … \| grep …`     | shell command must exit 0                   |
+/// | `out:ok:node -e "…"`     | trimmed stdout must equal `ok`              |
+/// | bare `nvim`              | backward-compat: binary check               |
+/// | bare `/…` or `~/…`       | backward-compat: path existence check       |
+/// | missing / empty          | always pending (no way to verify)           |
 fn step_is_pending(step: &SetupStep) -> bool {
     match step.check.as_deref() {
         None | Some("") => true,
         Some(raw) => {
             let raw = raw.trim();
             if let Some(bin) = raw.strip_prefix("bin:") {
-                which::which(bin.trim()).is_err()
+                !command_available(bin.trim())
             } else if let Some(path) = raw.strip_prefix("file:") {
-                path.trim().expand_tilde().map(|p| !p.is_file()).unwrap_or(true)
+                path.trim()
+                    .expand_tilde()
+                    .map(|p| !p.is_file())
+                    .unwrap_or(true)
             } else if let Some(path) = raw.strip_prefix("dir:") {
-                path.trim().expand_tilde().map(|p| !p.is_dir()).unwrap_or(true)
+                path.trim()
+                    .expand_tilde()
+                    .map(|p| !p.is_dir())
+                    .unwrap_or(true)
             } else if let Some(cmd) = raw.strip_prefix("cmd:") {
                 // Run the shell snippet; step is done when it exits 0.
                 std::process::Command::new("sh")
@@ -259,6 +107,22 @@ fn step_is_pending(step: &SetupStep) -> bool {
                     .status()
                     .map(|s| !s.success())
                     .unwrap_or(true)
+            } else if let Some(rest) = raw.strip_prefix("out:") {
+                // out:<expected>:<cmd> — step done when trimmed stdout == expected.
+                // Example: out:ok:node -e "..." | echo "ok"
+                if let Some((expected, cmd)) = rest.split_once(':') {
+                    let out = std::process::Command::new("sh")
+                        .arg("-c")
+                        .arg(cmd.trim())
+                        .stdout(std::process::Stdio::piped())
+                        .stderr(std::process::Stdio::null())
+                        .output()
+                        .ok()
+                        .and_then(|o| String::from_utf8(o.stdout).ok());
+                    out.map(|s| s.trim() != expected.trim()).unwrap_or(true)
+                } else {
+                    true // malformed — treat as pending
+                }
             } else if raw == "skip" || raw.starts_with("skip:") {
                 // User explicitly skipped this step — never pending
                 false
@@ -267,7 +131,7 @@ fn step_is_pending(step: &SetupStep) -> bool {
                 if raw.starts_with('/') || raw.starts_with('~') {
                     raw.expand_tilde().map(|p| !p.exists()).unwrap_or(true)
                 } else {
-                    which::which(raw).is_err()
+                    !command_available(raw)
                 }
             }
         }

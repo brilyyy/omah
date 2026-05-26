@@ -26,17 +26,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { ipc, type Dotfile } from "@/lib/ipc";
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
-const CHECK_TYPES = ["none", "bin", "file", "dir", "cmd", "skip"] as const;
+const CHECK_TYPES = ["none", "bin", "file", "dir", "cmd", "out", "skip"] as const;
 type CheckType = (typeof CHECK_TYPES)[number];
 
-const CHECK_META: Record<CheckType, { label: string; placeholder: string; hint: string }> = {
+const CHECK_META: Record<
+  CheckType,
+  { label: string; placeholder: string; hint: string; placeholderExpected?: string }
+> = {
   none: { label: "No check", placeholder: "", hint: "Step always shows as pending" },
-  bin: { label: "Binary in PATH", placeholder: "nvim", hint: "Skip when binary is found in PATH" },
+  bin: { label: "Binary / function", placeholder: "nvim", hint: "Skip when binary or shell function is found" },
   file: {
     label: "File exists",
     placeholder: "~/.config/nvim/init.lua",
@@ -52,12 +54,19 @@ const CHECK_META: Record<CheckType, { label: string; placeholder: string; hint: 
     placeholder: "ls ~/.local/share/nvim | grep lazy",
     hint: "Skip when the shell command exits 0",
   },
+  out: {
+    label: "Output matches",
+    placeholder: "node -e \"...\" | echo ok",
+    placeholderExpected: "ok",
+    hint: "Skip when command's trimmed stdout equals the expected value",
+  },
   skip: { label: "Always skip", placeholder: "", hint: "Permanently mark this step as done" },
 };
 
 const setupStepSchema = z.object({
   checkType: z.enum(CHECK_TYPES),
   checkValue: z.string(),
+  checkExpected: z.string(), // only used when checkType === "out"
   install: z.string().min(1, "Install command is required"),
 });
 
@@ -73,26 +82,41 @@ type DotfileFormValues = z.infer<typeof dotfileSchema>;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Parse a stored `"bin:nvim"` / `"file:~/.zshrc"` / bare string into type + value. */
-function parseCheck(raw: string | null | undefined): { checkType: CheckType; checkValue: string } {
-  if (!raw) return { checkType: "none", checkValue: "" };
-  if (raw === "skip" || raw.startsWith("skip:")) return { checkType: "skip", checkValue: "" };
+/** Parse a stored check string into form fields. */
+function parseCheck(raw: string | null | undefined): {
+  checkType: CheckType;
+  checkValue: string;
+  checkExpected: string;
+} {
+  if (!raw) return { checkType: "none", checkValue: "", checkExpected: "" };
+  if (raw === "skip" || raw.startsWith("skip:")) return { checkType: "skip", checkValue: "", checkExpected: "" };
+  if (raw.startsWith("out:")) {
+    const rest = raw.slice(4);
+    const sep = rest.indexOf(":");
+    return sep >= 0
+      ? { checkType: "out", checkExpected: rest.slice(0, sep), checkValue: rest.slice(sep + 1) }
+      : { checkType: "out", checkExpected: "", checkValue: rest };
+  }
   for (const t of CHECK_TYPES) {
-    if (t !== "none" && t !== "skip" && raw.startsWith(`${t}:`)) {
-      return { checkType: t, checkValue: raw.slice(t.length + 1) };
+    if (t !== "none" && t !== "skip" && t !== "out" && raw.startsWith(`${t}:`)) {
+      return { checkType: t, checkValue: raw.slice(t.length + 1), checkExpected: "" };
     }
   }
   // Backward-compat: bare path → file check, bare name → bin check
   if (raw.startsWith("/") || raw.startsWith("~")) {
-    return { checkType: "file", checkValue: raw };
+    return { checkType: "file", checkValue: raw, checkExpected: "" };
   }
-  return { checkType: "bin", checkValue: raw };
+  return { checkType: "bin", checkValue: raw, checkExpected: "" };
 }
 
-/** Serialize type + value back to `"bin:nvim"` etc. */
-function serializeCheck(type: CheckType, value: string): string | null {
+/** Serialize type + value back to `"bin:nvim"` / `"out:ok:cmd"` etc. */
+function serializeCheck(type: CheckType, value: string, expected?: string): string | null {
   if (type === "none") return null;
   if (type === "skip") return "skip";
+  if (type === "out") {
+    if (!expected?.trim() || !value.trim()) return null;
+    return `out:${expected.trim()}:${value.trim()}`;
+  }
   if (!value.trim()) return null;
   return `${type}:${value.trim()}`;
 }
@@ -105,8 +129,8 @@ function dotfileToFormValues(dotfile: Dotfile): DotfileFormValues {
     deps: dotfile.deps?.join(", ") ?? "",
     setup:
       dotfile.setup?.map((s) => ({
-        ...parseCheck(s.check),
         install: s.install,
+        ...parseCheck(s.check),
       })) ?? [],
   };
 }
@@ -127,7 +151,7 @@ function formValuesToDotfile(v: DotfileFormValues): Dotfile {
   const setup = v.setup
     .filter((s) => s.install.trim())
     .map((s) => ({
-      check: serializeCheck(s.checkType, s.checkValue),
+      check: serializeCheck(s.checkType, s.checkValue, s.checkExpected),
       install: s.install.trim(),
     }));
   return {
@@ -322,27 +346,6 @@ function DotfileFormDialog({ mode, dotfile, dotIndex, onClose }: DotfileFormDial
             )}
           </form.Field>
 
-          {/* Symlink */}
-          <form.Field name="symlink">
-            {(field) => (
-              <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
-                <div>
-                  <Label htmlFor="field-symlink" className="cursor-pointer font-normal">
-                    Symlink mode
-                  </Label>
-                  <p className="text-xs text-muted-foreground">
-                    Replace source with a symlink to the vault copy
-                  </p>
-                </div>
-                <Switch
-                  id="field-symlink"
-                  checked={field.state.value}
-                  onCheckedChange={(v) => field.handleChange(v)}
-                />
-              </div>
-            )}
-          </form.Field>
-
           {/* Deps */}
           <form.Field name="deps">
             {(field) => (
@@ -380,7 +383,7 @@ function DotfileFormDialog({ mode, dotfile, dotIndex, onClose }: DotfileFormDial
                     size="sm"
                     className="h-7 gap-1 text-xs"
                     onClick={() =>
-                      field.pushValue({ checkType: "none", checkValue: "", install: "" })
+                      field.pushValue({ checkType: "none", checkValue: "", checkExpected: "", install: "" })
                     }
                   >
                     <Plus className="size-3" />
@@ -461,7 +464,8 @@ function DotfileFormDialog({ mode, dotfile, dotIndex, onClose }: DotfileFormDial
 
                                 {/* Check value — hidden when "none" or "skip" */}
                                 {typeField.state.value !== "none" &&
-                                  typeField.state.value !== "skip" && (
+                                  typeField.state.value !== "skip" &&
+                                  typeField.state.value !== "out" && (
                                     <form.Field name={`setup[${i}].checkValue`}>
                                       {(valField) => (
                                         <Input
@@ -476,6 +480,35 @@ function DotfileFormDialog({ mode, dotfile, dotIndex, onClose }: DotfileFormDial
                                       )}
                                     </form.Field>
                                   )}
+
+                                {/* out: expected value (small) + command (flex) */}
+                                {typeField.state.value === "out" && (
+                                  <>
+                                    <form.Field name={`setup[${i}].checkExpected`}>
+                                      {(expField) => (
+                                        <Input
+                                          placeholder={CHECK_META.out.placeholderExpected}
+                                          value={expField.state.value}
+                                          onChange={(e) => expField.handleChange(e.target.value)}
+                                          onBlur={expField.handleBlur}
+                                          className="h-8 w-16 shrink-0 font-mono text-xs"
+                                          title="Expected output"
+                                        />
+                                      )}
+                                    </form.Field>
+                                    <form.Field name={`setup[${i}].checkValue`}>
+                                      {(valField) => (
+                                        <Input
+                                          placeholder={CHECK_META.out.placeholder}
+                                          value={valField.state.value}
+                                          onChange={(e) => valField.handleChange(e.target.value)}
+                                          onBlur={valField.handleBlur}
+                                          className="h-8 font-mono text-xs"
+                                        />
+                                      )}
+                                    </form.Field>
+                                  </>
+                                )}
                               </div>
                             )}
                           </form.Field>
