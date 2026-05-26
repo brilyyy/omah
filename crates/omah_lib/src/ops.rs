@@ -126,10 +126,6 @@ pub fn backup(config: &OmahConfig) -> Result<()> {
         }
     }
 
-    if config.git.unwrap_or(false) {
-        crate::git::auto_commit_vault(&vault).context("git auto-commit failed")?;
-    }
-
     Ok(())
 }
 
@@ -348,7 +344,7 @@ mod tests {
     use tempfile::tempdir;
 
     fn make_config(vault: &str, dots: Vec<DotfileConfig>) -> OmahConfig {
-        OmahConfig { vault_path: vault.to_string(), dots, git: None, os: None, pkg_manager: None }
+        OmahConfig { vault_path: vault.to_string(), dots, os: None, pkg_manager: None }
     }
 
     fn dot(name: &str, source: &str, symlink: Option<bool>) -> DotfileConfig {
