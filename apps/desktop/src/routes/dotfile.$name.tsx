@@ -35,7 +35,10 @@ import { useConfig } from "@/hooks/use-config";
 import { useStatus } from "@/hooks/use-status";
 import { useBackupOne, useRestoreOne } from "@/hooks/use-backup-restore";
 import { useSymlinkMutation } from "@/hooks/use-symlink-mutation";
-import { useStreamingTerminal, type TerminalLine } from "@/hooks/use-streaming-terminal";
+import {
+  useStreamingTerminal,
+  type TerminalLine,
+} from "@/hooks/use-streaming-terminal";
 import { ipc, type SetupStep } from "@/lib/ipc";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
@@ -72,7 +75,9 @@ function DotfileDetail() {
     mutationFn: (stepIndex: number) => {
       if (!config || !dot) throw new Error("Config not loaded");
       const updatedSetup =
-        dot.setup?.map((s, i) => (i === stepIndex ? { ...s, check: "skip" } : s)) ?? [];
+        dot.setup?.map((s, i) =>
+          i === stepIndex ? { ...s, check: "skip" } : s,
+        ) ?? [];
       const updatedDot = { ...dot, setup: updatedSetup };
       const dots = config.dots.map((d, i) => (i === dotIndex ? updatedDot : d));
       return ipc.saveConfig({ ...config, dots });
@@ -101,7 +106,10 @@ function DotfileDetail() {
       <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
         <HardDrive className="size-10 opacity-30" />
         <p className="text-sm">Dotfile "{name}" not found.</p>
-        <Link to="/" className="text-xs text-primary underline-offset-4 hover:underline">
+        <Link
+          to="/"
+          className="text-xs text-primary underline-offset-4 hover:underline"
+        >
           Back to dotfiles
         </Link>
       </div>
@@ -109,7 +117,8 @@ function DotfileDetail() {
   }
 
   // Compute vault entry path for display
-  const sourceBasename = dot.source.replace(/\/$/, "").split("/").pop() ?? dot.source;
+  const sourceBasename =
+    dot.source.replace(/\/$/, "").split("/").pop() ?? dot.source;
   const vaultEntry = `${config.vault_path}/${dot.name}/${sourceBasename}`;
 
   return (
@@ -129,20 +138,29 @@ function DotfileDetail() {
               <StatusBadge status={status} />
               <div className="flex items-center gap-1.5">
                 <Link2 className="size-2.5 text-muted-foreground" />
-                <span className="text-[11px] text-muted-foreground select-none">symlink</span>
+                <span className="text-[11px] text-muted-foreground select-none">
+                  symlink
+                </span>
                 <Switch
                   checked={dot.symlink ?? false}
                   onCheckedChange={handleSymlinkChange}
                   disabled={isBusy || symlinkMutation.isPending}
                   aria-label="Toggle symlink mode"
                 />
-                <AlertDialog open={confirmSymlink} onOpenChange={setConfirmSymlink}>
+                <AlertDialog
+                  open={confirmSymlink}
+                  onOpenChange={setConfirmSymlink}
+                >
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>Enable symlink mode for "{dot.name}"?</AlertDialogTitle>
+                      <AlertDialogTitle>
+                        Enable symlink mode for "{dot.name}"?
+                      </AlertDialogTitle>
                       <AlertDialogDescription>
                         This will back up the source and{" "}
-                        <span className="font-medium text-foreground">replace it with a symlink</span>{" "}
+                        <span className="font-medium text-foreground">
+                          replace it with a symlink
+                        </span>{" "}
                         pointing to the vault. Run a restore to undo this.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
@@ -181,8 +199,16 @@ function DotfileDetail() {
             )}
             Restore
           </Button>
-          <Button size="sm" onClick={() => backupMutation.mutate(name)} disabled={isBusy}>
-            {backupMutation.isPending ? <Loader2 className="animate-spin" /> : <ArrowUpFromLine />}
+          <Button
+            size="sm"
+            onClick={() => backupMutation.mutate(name)}
+            disabled={isBusy}
+          >
+            {backupMutation.isPending ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <ArrowUpFromLine />
+            )}
             Backup
           </Button>
           <DotfileDialog mode="edit" dotfile={dot} dotIndex={dotIndex}>
@@ -198,8 +224,16 @@ function DotfileDetail() {
         {/* Locations */}
         <Section title="Locations">
           <div className="divide-y divide-border/50">
-            <LocationRow label="Source" path={dot.source} ok={status.source_exists} />
-            <LocationRow label="Vault" path={vaultEntry} ok={status.backed_up} />
+            <LocationRow
+              label="Source"
+              path={dot.source}
+              ok={status.source_exists}
+            />
+            <LocationRow
+              label="Vault"
+              path={vaultEntry}
+              ok={status.backed_up}
+            />
           </div>
         </Section>
 
@@ -262,7 +296,11 @@ function TerminalPanel({
         <span
           className={cn(
             "shrink-0 text-[10px] font-medium transition-colors",
-            running ? "text-yellow-400/80" : termSuccess ? "text-green-400/80" : "text-red-400/80",
+            running
+              ? "text-yellow-400/80"
+              : termSuccess
+                ? "text-green-400/80"
+                : "text-red-400/80",
           )}
         >
           {running ? "running…" : termSuccess ? "✓ done" : "✗ failed"}
@@ -291,7 +329,9 @@ function TerminalPanel({
           <span className="inline-block w-1.75 h-3.25 bg-[#d4c4a0]/70 animate-[cursor-blink_1s_step-end_infinite] align-middle" />
         )}
         {!running && termSuccess !== null && lines.length === 0 && (
-          <span className="font-mono text-[11px] text-white/30">(no output)</span>
+          <span className="font-mono text-[11px] text-white/30">
+            (no output)
+          </span>
         )}
       </div>
     </div>
@@ -505,11 +545,16 @@ function SetupStepRow({
         if (event.done) {
           setRunning(false);
           setTermSuccess(event.success ?? false);
-          if (event.success) queryClient.invalidateQueries({ queryKey: queryKeys.status() });
+          if (event.success)
+            queryClient.invalidateQueries({ queryKey: queryKeys.status() });
         } else if (event.line) {
           setLines((prev) => [
             ...prev,
-            { text: event.line, isStderr: event.is_stderr, key: lineKeyRef.current++ },
+            {
+              text: event.line,
+              isStderr: event.is_stderr,
+              key: lineKeyRef.current++,
+            },
           ]);
         }
       });
@@ -561,23 +606,35 @@ function SetupStepRow({
           <p
             className={cn(
               "truncate font-mono text-xs",
-              isSkipped ? "text-muted-foreground/50 line-through" : "text-foreground",
+              isSkipped
+                ? "text-muted-foreground/50 line-through"
+                : "text-foreground",
             )}
           >
             {step.install}
           </p>
           {checkLabel && (
-            <p className="font-mono text-[11px] text-muted-foreground">{checkLabel}</p>
+            <p className="font-mono text-[11px] text-muted-foreground">
+              {checkLabel}
+            </p>
           )}
           {!step.check && isPending && (
-            <p className="text-[11px] text-muted-foreground/60">no check defined</p>
+            <p className="text-[11px] text-muted-foreground/60">
+              no check defined
+            </p>
           )}
         </div>
 
         {/* State label + actions */}
         <div className="shrink-0 flex items-center gap-1">
-          {isSkipped && <span className="text-[11px] text-muted-foreground/40">skipped</span>}
-          {isDone && <span className="text-[11px] text-green-500/70">done</span>}
+          {isSkipped && (
+            <span className="text-[11px] text-muted-foreground/40">
+              skipped
+            </span>
+          )}
+          {isDone && (
+            <span className="text-[11px] text-green-500/70">done</span>
+          )}
           {isPending && (
             <>
               <button
@@ -586,7 +643,11 @@ function SetupStepRow({
                 disabled={running}
                 className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-yellow-500 hover:bg-yellow-500/10 disabled:opacity-50 transition-colors"
               >
-                {running ? <Loader2 className="size-3 animate-spin" /> : <Play className="size-3" />}
+                {running ? (
+                  <Loader2 className="size-3 animate-spin" />
+                ) : (
+                  <Play className="size-3" />
+                )}
                 Run
               </button>
               <button
@@ -635,7 +696,9 @@ function SetupStepRow({
             className="max-h-52 overflow-y-auto px-3 py-2 space-y-px scrollbar-thin scrollbar-track-transparent scrollbar-thumb-white/10"
           >
             {lines.length === 0 && running && (
-              <span className="text-white/25 font-mono text-[11px]">$ {step.install}</span>
+              <span className="text-white/25 font-mono text-[11px]">
+                $ {step.install}
+              </span>
             )}
             {lines.map((line) => (
               <div
@@ -653,7 +716,9 @@ function SetupStepRow({
               <span className="inline-block w-1.75 h-3.25 bg-[#d4c4a0]/70 animate-[cursor-blink_1s_step-end_infinite] align-middle" />
             )}
             {!running && termSuccess !== null && lines.length === 0 && (
-              <span className="font-mono text-[11px] text-white/30">(no output)</span>
+              <span className="font-mono text-[11px] text-white/30">
+                (no output)
+              </span>
             )}
           </div>
         </div>
@@ -681,18 +746,31 @@ function Section({
         </p>
         {action}
       </div>
-      <div className="rounded-lg border border-border bg-card px-4">{children}</div>
+      <div className="rounded-lg border border-border bg-card px-4">
+        {children}
+      </div>
     </div>
   );
 }
 
-function LocationRow({ label, path, ok }: { label: string; path: string; ok: boolean }) {
+function LocationRow({
+  label,
+  path,
+  ok,
+}: {
+  label: string;
+  path: string;
+  ok: boolean;
+}) {
   return (
     <div className="flex items-center gap-3 py-2.5">
       <span className="w-10 shrink-0 text-[11px] uppercase tracking-wider text-muted-foreground">
         {label}
       </span>
-      <span className="flex-1 truncate font-mono text-xs text-foreground" title={path}>
+      <span
+        className="flex-1 truncate font-mono text-xs text-foreground"
+        title={path}
+      >
         {path}
       </span>
       {ok ? (
@@ -704,7 +782,11 @@ function LocationRow({ label, path, ok }: { label: string; path: string; ok: boo
   );
 }
 
-function StatusBadge({ status }: { status: { source_exists: boolean; backed_up: boolean } }) {
+function StatusBadge({
+  status,
+}: {
+  status: { source_exists: boolean; backed_up: boolean };
+}) {
   if (!status.source_exists) {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">

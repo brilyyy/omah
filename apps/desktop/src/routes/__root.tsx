@@ -47,10 +47,10 @@ const NAV: {
   icon: React.FC<{ className?: string }>;
   exact?: boolean;
 }[] = [
-  { to: "/", label: "Dotfiles", icon: LayoutList, exact: true },
-  { to: "/diff", label: "Diff", icon: FileDiff },
-  { to: "/settings", label: "Settings", icon: SlidersHorizontal },
-];
+    { to: "/", label: "Dotfiles", icon: LayoutList, exact: true },
+    { to: "/diff", label: "Diff", icon: FileDiff },
+    { to: "/settings", label: "Settings", icon: SlidersHorizontal },
+  ];
 
 function RootLayout() {
   return (
@@ -101,7 +101,11 @@ function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
             <div className="flex items-center gap-2 px-1 py-1">
-              <img src={appIcon} alt="omah" className="size-7 shrink-0 rounded-md" />
+              <img
+                src={appIcon}
+                alt="omah"
+                className="size-7 shrink-0 rounded-md"
+              />
               <div className="flex min-w-0 flex-1 items-center justify-between group-data-[collapsible=icon]:hidden">
                 <span className="text-sm font-semibold tracking-tight">
                   omah

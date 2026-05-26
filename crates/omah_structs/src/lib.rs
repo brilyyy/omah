@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OmahConfig {
     pub vault_path: String,
+    #[serde(default)]
     pub dots: Vec<DotfileConfig>,
     /// Target OS. `"auto"` (default) detects at runtime. Accepts `"macos"` or `"linux"`.
     pub os: Option<String>,

@@ -300,57 +300,57 @@ function AboutContent() {
       label: "Tauri 2",
       style: isDark
         ? {
-            background: "rgba(120,60,15,0.55)",
-            color: "#e8c070",
-            border: "rgba(175,110,35,0.35)",
-          }
+          background: "rgba(120,60,15,0.55)",
+          color: "#e8c070",
+          border: "rgba(175,110,35,0.35)",
+        }
         : {
-            background: "rgba(160,85,20,0.18)",
-            color: "#7a3c08",
-            border: "rgba(140,80,20,0.3)",
-          },
+          background: "rgba(160,85,20,0.18)",
+          color: "#7a3c08",
+          border: "rgba(140,80,20,0.3)",
+        },
     },
     {
       label: "Rust",
       style: isDark
         ? {
-            background: "rgba(90,35,12,0.55)",
-            color: "#e09060",
-            border: "rgba(160,90,35,0.35)",
-          }
+          background: "rgba(90,35,12,0.55)",
+          color: "#e09060",
+          border: "rgba(160,90,35,0.35)",
+        }
         : {
-            background: "rgba(140,65,15,0.18)",
-            color: "#6b2e08",
-            border: "rgba(120,60,15,0.3)",
-          },
+          background: "rgba(140,65,15,0.18)",
+          color: "#6b2e08",
+          border: "rgba(120,60,15,0.3)",
+        },
     },
     {
       label: "React",
       style: isDark
         ? {
-            background: "rgba(20,45,60,0.55)",
-            color: "#7ac8e0",
-            border: "rgba(40,110,145,0.35)",
-          }
+          background: "rgba(20,45,60,0.55)",
+          color: "#7ac8e0",
+          border: "rgba(40,110,145,0.35)",
+        }
         : {
-            background: "rgba(20,80,110,0.12)",
-            color: "#0e5272",
-            border: "rgba(20,80,110,0.28)",
-          },
+          background: "rgba(20,80,110,0.12)",
+          color: "#0e5272",
+          border: "rgba(20,80,110,0.28)",
+        },
     },
     {
       label: "TypeScript",
       style: isDark
         ? {
-            background: "rgba(18,42,70,0.55)",
-            color: "#7aabe0",
-            border: "rgba(35,90,160,0.35)",
-          }
+          background: "rgba(18,42,70,0.55)",
+          color: "#7aabe0",
+          border: "rgba(35,90,160,0.35)",
+        }
         : {
-            background: "rgba(18,60,120,0.12)",
-            color: "#0d3a72",
-            border: "rgba(18,60,120,0.28)",
-          },
+          background: "rgba(18,60,120,0.12)",
+          color: "#0d3a72",
+          border: "rgba(18,60,120,0.28)",
+        },
     },
   ];
 

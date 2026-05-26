@@ -10,6 +10,9 @@ use tracing::{error, info, instrument};
 
 fn load_config() -> Result<OmahConfig, String> {
     let path = get_default_config_path().map_err(|e| e.to_string())?;
+    if !path.exists() {
+        omah_core::init_setup().map_err(|e| e.to_string())?;
+    }
     load_toml_config(&path).map_err(|e| e.to_string())
 }
 
