@@ -36,7 +36,7 @@ This is a Cargo workspace with three crates under `crates/` and a Tauri desktop 
 omah_structs  →  omah_lib  →  omah_bin (binary: omah)
                           →  omah_core (re-exports for desktop)
 
-apps/desktop  →  Tauri v2 desktop app
+src-tauri     →  Tauri v2 desktop app
 ```
 
 **`omah_structs`** — pure data types, no logic. Defines `OmahConfig` (top-level config with `vault_path` and a `dots` array) and `DotfileConfig` (per-dotfile entry with `name`, `source`, optional `symlink`). Both derive `Serialize`/`Deserialize`.
@@ -49,7 +49,7 @@ apps/desktop  →  Tauri v2 desktop app
 
 **`omah_bin`** — thin CLI layer using `clap`. `cli.rs` defines the `Cli` struct and `Commands` enum (`init`, `backup`, `restore`, `status`, `list`, `diff`). Each command lives in its own file under `commands/` and delegates immediately to `omah_lib`.
 
-**`apps/desktop`** — Tauri v2 desktop GUI. Frontend uses React + TanStack Router/Query + shadcn/ui. Backend (`src-tauri/`) exposes `omah_core` via Tauri commands with streaming terminal support.
+**`src-tauri`** — Tauri v2 desktop GUI. Frontend (React + TanStack Router/Query + shadcn/ui) lives at repo root alongside `src-tauri/`. Backend exposes `omah_core` via Tauri commands with streaming terminal support.
 
 ## Config file
 

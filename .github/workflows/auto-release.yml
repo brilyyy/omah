@@ -166,7 +166,7 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            apps/desktop/src-tauri/target/
+            src-tauri/target/
           key: ${{ runner.os }}-cargo-desktop-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-desktop-
@@ -175,15 +175,14 @@ jobs:
         run: bun install
 
       - name: Build Tauri app
-        working-directory: apps/desktop
-        run: bun run tauri:build
+        run: bun run build
 
       - name: Upload macOS dmg
         if: startsWith(matrix.os, 'macos')
         uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.name }}
-          path: apps/desktop/src-tauri/target/release/bundle/macos/*.dmg
+          path: src-tauri/target/release/bundle/macos/*.dmg
           retention-days: 1
           if-no-files-found: error
 
@@ -192,7 +191,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.name }}
-          path: apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage
+          path: src-tauri/target/release/bundle/appimage/*.AppImage
           retention-days: 1
           if-no-files-found: error
 

@@ -5,5 +5,8 @@ pub use omah_lib::config::{
     load_toml_config, save_toml_config,
 };
 pub use omah_lib::constants::{DEFAULT_CONFIG_DIR, DEFAULT_CONFIG_FILE, DEFAULT_VAULT_PATH};
-pub use omah_lib::deps::{declared_deps, detect_package_manager, install_command, is_installed, missing_deps, pending_setup_steps, resolve_pkg_manager};
-pub use omah_lib::ops::{backup, diff, restore, status, ChangeKind, DotStatus, FileChange};
+pub use omah_lib::deps::{
+    declared_deps, detect_package_manager, install_command, is_installed, missing_deps,
+    pending_setup_steps, resolve_pkg_manager,
+};
+pub use omah_lib::ops::{ChangeKind, DotStatus, FileChange, backup, diff, restore, status};
