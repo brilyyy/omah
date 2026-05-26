@@ -12,3 +12,6 @@ dist/
 src-tauri/gen/
 
 plan.md
+
+.tanstack/
+.claude/
