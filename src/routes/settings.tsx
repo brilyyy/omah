@@ -19,7 +19,14 @@ export const Route = createFileRoute("/settings")({
   component: SettingsView,
 });
 
-const PKG_MANAGERS = ["auto", "brew", "apt-get", "pacman", "dnf", "zypper"] as const;
+const PKG_MANAGERS = [
+  "auto",
+  "brew",
+  "apt-get",
+  "pacman",
+  "dnf",
+  "zypper",
+] as const;
 const OS_OPTIONS = ["auto", "macos", "linux"] as const;
 
 function SettingsView() {
@@ -80,7 +87,10 @@ function SettingsView() {
         <div>
           <h1 className="text-base font-semibold text-foreground">Settings</h1>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Saved to <span className="font-mono text-xs">~/.config/omah/omah-config.toml</span>
+            Saved to{" "}
+            <span className="font-mono text-xs">
+              ~/.config/omah/omah-config.toml
+            </span>
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -100,7 +110,11 @@ function SettingsView() {
             onClick={() => saveMutation.mutate(form as Config)}
             disabled={!dirty || saveMutation.isPending}
           >
-            {saveMutation.isPending ? <Loader2 className="animate-spin" /> : <Save />}
+            {saveMutation.isPending ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <Save />
+            )}
             Save
           </Button>
         </div>
@@ -120,8 +134,14 @@ function SettingsView() {
           </Field>
 
           {/* OS */}
-          <Field label="OS" description="Target operating system for this machine">
-            <Select value={form.os ?? "auto"} onValueChange={(v) => update("os", v)}>
+          <Field
+            label="OS"
+            description="Target operating system for this machine"
+          >
+            <Select
+              value={form.os ?? "auto"}
+              onValueChange={(v) => update("os", v)}
+            >
               <SelectTrigger className="w-36">
                 <SelectValue />
               </SelectTrigger>
@@ -136,7 +156,10 @@ function SettingsView() {
           </Field>
 
           {/* Package manager */}
-          <Field label="Package manager" description="Used when installing missing deps">
+          <Field
+            label="Package manager"
+            description="Used when installing missing deps"
+          >
             <Select
               value={form.pkg_manager ?? "auto"}
               onValueChange={(v) => update("pkg_manager", v)}
@@ -179,7 +202,9 @@ function Field({
     <div className="flex items-center justify-between gap-6 rounded-lg border border-border bg-card px-4 py-3.5">
       <div className="min-w-0">
         <Label className="text-sm font-medium text-foreground">{label}</Label>
-        {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
+        {description && (
+          <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+        )}
       </div>
       <div className="shrink-0">{children}</div>
     </div>
