@@ -76,7 +76,7 @@ pub fn resolve_pkg_manager(configured: Option<&str>) -> Option<String> {
 /// | `file:~/.zshrc`          | the file must exist                         |
 /// | `dir:~/.config/nvim`     | the directory must exist                    |
 /// | `cmd:ls … \| grep …`     | shell command must exit 0                   |
-/// | `out:ok:node -e "…"`     | trimmed stdout must equal `ok`              |
+/// | `out:ok`                 | runs install cmd; done when stdout == `ok`  |
 /// | bare `nvim`              | backward-compat: binary check               |
 /// | bare `/…` or `~/…`       | backward-compat: path existence check       |
 /// | missing / empty          | always pending (no way to verify)           |
@@ -107,22 +107,17 @@ fn step_is_pending(step: &SetupStep) -> bool {
                     .status()
                     .map(|s| !s.success())
                     .unwrap_or(true)
-            } else if let Some(rest) = raw.strip_prefix("out:") {
-                // out:<expected>:<cmd> — step done when trimmed stdout == expected.
-                // Example: out:ok:node -e "..." | echo "ok"
-                if let Some((expected, cmd)) = rest.split_once(':') {
-                    let out = std::process::Command::new("sh")
-                        .arg("-c")
-                        .arg(cmd.trim())
-                        .stdout(std::process::Stdio::piped())
-                        .stderr(std::process::Stdio::null())
-                        .output()
-                        .ok()
-                        .and_then(|o| String::from_utf8(o.stdout).ok());
-                    out.map(|s| s.trim() != expected.trim()).unwrap_or(true)
-                } else {
-                    true // malformed — treat as pending
-                }
+            } else if let Some(expected) = raw.strip_prefix("out:") {
+                // out:<expected> — runs the install command, done when trimmed stdout == expected.
+                let out = std::process::Command::new("sh")
+                    .arg("-c")
+                    .arg(step.install.trim())
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::null())
+                    .output()
+                    .ok()
+                    .and_then(|o| String::from_utf8(o.stdout).ok());
+                out.map(|s| s.trim() != expected.trim()).unwrap_or(true)
             } else if raw == "skip" || raw.starts_with("skip:") {
                 // User explicitly skipped this step — never pending
                 false
