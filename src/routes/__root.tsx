@@ -7,15 +7,20 @@ import {
 } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
+  ArrowUpRight,
   FileDiff,
   HardDrive,
   Info,
   LayoutList,
   SlidersHorizontal,
+  X,
 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Toaster } from "sonner";
+import { listen } from "@tauri-apps/api/event";
+import { open as openUrl } from "@tauri-apps/plugin-shell";
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { ipc } from "@/lib/ipc";
+import { ipc, type UpdateInfo } from "@/lib/ipc";
 import { ThemeProvider } from "@/components/theme-provider";
 import { ModeToggle } from "@/components/mode-toggle";
 import { DonationDialog } from "@/components/donation-dialog";
@@ -52,19 +57,75 @@ const NAV: {
 ];
 
 function RootLayout() {
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+
+  useEffect(() => {
+    // Listen for update available event from Rust (startup auto-check)
+    const unlisten = listen<UpdateInfo>("update-available", (e) => {
+      setUpdateInfo(e.payload);
+    });
+    // Listen for tray "Check for Updates" action
+    const unlistenTray = listen("tray-check-update", async () => {
+      try {
+        const info = await ipc.checkUpdate();
+        if (info) setUpdateInfo(info);
+      } catch {}
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+      unlistenTray.then((fn) => fn());
+    };
+  }, []);
+
   return (
     <ThemeProvider storageKey="omah-theme">
       <TooltipProvider>
         <SidebarProvider defaultOpen={false}>
           <AppSidebar />
-          <SidebarInset className="overflow-hidden">
-            <Outlet />
+          <SidebarInset className="flex flex-col overflow-hidden">
+            {updateInfo && (
+              <UpdateBanner info={updateInfo} onDismiss={() => setUpdateInfo(null)} />
+            )}
+            <div className="flex-1 overflow-hidden">
+              <Outlet />
+            </div>
           </SidebarInset>
           <Toaster position="bottom-right" />
           <DonationDialog />
         </SidebarProvider>
       </TooltipProvider>
     </ThemeProvider>
+  );
+}
+
+function UpdateBanner({
+  info,
+  onDismiss,
+}: { info: UpdateInfo; onDismiss: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-primary/20 bg-primary/8 px-4 py-2 text-sm">
+      <span className="text-foreground">
+        omah <span className="font-semibold text-primary">v{info.version}</span>{" "}
+        is available
+      </span>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => openUrl(info.url)}
+          className="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+        >
+          Download
+          <ArrowUpRight className="size-3" />
+        </button>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="rounded p-0.5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+        >
+          <X className="size-3.5" />
+        </button>
+      </div>
+    </div>
   );
 }
 

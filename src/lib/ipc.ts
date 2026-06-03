@@ -55,6 +55,16 @@ export type SetupStepOutputEvent = {
   success: boolean | null;
 };
 
+export type AppSettings = {
+  run_in_tray: boolean;
+  auto_update: boolean;
+};
+
+export type UpdateInfo = {
+  version: string;
+  url: string;
+};
+
 // ── Typed wrappers around Tauri invoke ──────────────────────────────────────
 // Result-returning Rust commands throw (reject) on Err — handle via
 // try/catch or React Query's onError / throwOnError options.
@@ -74,6 +84,11 @@ export const ipc = {
     invoke<void>("install_missing_deps", { runId, name }),
   runPendingSetups: (runId: string, name: string) =>
     invoke<void>("run_pending_setups", { runId, name }),
+
+  getAppSettings: () => invoke<AppSettings>("get_app_settings"),
+  saveAppSettings: (settings: AppSettings) =>
+    invoke<void>("save_app_settings", { settings }),
+  checkUpdate: () => invoke<UpdateInfo | null>("check_update"),
 
   /** Stream setup step output line-by-line via Tauri events.
    *  `onEvent` is called for each line and once more with `done: true` when finished.
