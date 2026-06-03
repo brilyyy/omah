@@ -88,6 +88,7 @@ setup = [
 | `bin:nvim` | binary or shell function in PATH (e.g. `bin:nvm`) |
 | `file:~/.zshrc` | file must exist |
 | `dir:~/.config/nvim` | directory must exist |
+| `app:Homebrew` | macOS app bundle exists in `/Applications` or `~/Applications` |
 | `cmd:ls ... \| grep x` | shell command must exit 0 |
 | `out:ok` | runs the install command; done when trimmed stdout == `ok` |
 | `skip` | permanently mark as done |

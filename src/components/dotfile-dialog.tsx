@@ -30,7 +30,7 @@ import { ipc, type Dotfile } from "@/lib/ipc";
 
 // ── Schema ────────────────────────────────────────────────────────────────────
 
-const CHECK_TYPES = ["none", "bin", "file", "dir", "cmd", "out", "skip"] as const;
+const CHECK_TYPES = ["none", "bin", "file", "dir", "app", "cmd", "out", "skip"] as const;
 type CheckType = (typeof CHECK_TYPES)[number];
 
 const CHECK_META: Record<
@@ -48,6 +48,11 @@ const CHECK_META: Record<
     label: "Dir exists",
     placeholder: "~/.config/nvim",
     hint: "Skip when the directory exists",
+  },
+  app: {
+    label: "macOS App installed",
+    placeholder: "Homebrew",
+    hint: "Skip when app bundle exists in /Applications or ~/Applications",
   },
   cmd: {
     label: "Command exits 0",

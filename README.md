@@ -94,6 +94,7 @@ Controls when a setup step is considered done and skipped:
 | `bin:<name>` | Binary or shell function is in PATH |
 | `file:<path>` | File exists |
 | `dir:<path>` | Directory exists |
+| `app:<name>` | macOS app bundle exists in `/Applications` or `~/Applications` |
 | `cmd:<shell>` | Shell command exits 0 |
 | `out:<expected>` | `install` command's stdout matches `expected` |
 | `skip` | Always skipped |

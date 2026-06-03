@@ -97,6 +97,19 @@ fn step_is_pending(step: &SetupStep) -> bool {
                     .expand_tilde()
                     .map(|p| !p.is_dir())
                     .unwrap_or(true)
+            } else if let Some(app_name) = raw.strip_prefix("app:") {
+                let name = app_name.trim();
+                let bundle = if name.ends_with(".app") {
+                    name.to_string()
+                } else {
+                    format!("{name}.app")
+                };
+                let in_system = std::path::Path::new("/Applications").join(&bundle).is_dir();
+                let in_home = format!("~/Applications/{bundle}")
+                    .expand_tilde()
+                    .map(|p| p.is_dir())
+                    .unwrap_or(false);
+                !(in_system || in_home)
             } else if let Some(cmd) = raw.strip_prefix("cmd:") {
                 // Run the shell snippet; step is done when it exits 0.
                 std::process::Command::new("sh")
