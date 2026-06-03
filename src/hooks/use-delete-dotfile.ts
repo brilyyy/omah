@@ -11,6 +11,7 @@ export function useDeleteDotfile() {
   return useMutation({
     mutationFn: (dotIndex: number) => {
       if (!config) throw new Error("Config not loaded");
+      if (dotIndex < 0) throw new Error("Dotfile not found in config");
       const dots = config.dots.filter((_, i) => i !== dotIndex);
       return ipc.saveConfig({ ...config, dots });
     },

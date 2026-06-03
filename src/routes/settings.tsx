@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, RotateCcw, Save } from "lucide-react";
+import { ArrowUpRight, CheckCircle2, Loader2, RotateCcw, Save } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { open as openUrl } from "@tauri-apps/plugin-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -13,7 +15,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ipc, type Config } from "@/lib/ipc";
+import { useAppSettings, useSaveAppSettings } from "@/hooks/use-app-settings";
+import { ipc, type Config, type UpdateInfo } from "@/lib/ipc";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsView,
@@ -108,7 +111,7 @@ function SettingsView() {
           <Button
             size="sm"
             onClick={() => saveMutation.mutate(form as Config)}
-            disabled={!dirty || saveMutation.isPending}
+            disabled={!dirty || saveMutation.isPending || !form.vault_path?.trim()}
           >
             {saveMutation.isPending ? (
               <Loader2 className="animate-spin" />
@@ -122,7 +125,12 @@ function SettingsView() {
 
       {/* Form */}
       <div className="flex-1 overflow-auto px-6 py-6">
-        <div className="mx-auto max-w-xl space-y-4">
+        <div className="mx-auto max-w-xl space-y-6">
+          {/* App settings */}
+          <AppSection />
+
+          <div className="border-t border-border" />
+
           {/* Vault path */}
           <Field label="Vault path" description="Where dotfiles are stored">
             <Input
@@ -189,6 +197,105 @@ function SettingsView() {
   );
 }
 
+// ── App section (tray + updates) ─────────────────────────────────────────────
+
+function AppSection() {
+  const { data: appSettings, isLoading } = useAppSettings();
+  const saveSettings = useSaveAppSettings();
+  const { data: version } = useQuery({
+    queryKey: ["version"],
+    queryFn: () => ipc.getVersion(),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+  const [updateState, setUpdateState] = useState<
+    "idle" | "checking" | "up-to-date" | { info: UpdateInfo }
+  >("idle");
+
+  async function handleCheckUpdate() {
+    setUpdateState("checking");
+    try {
+      const info = await ipc.checkUpdate();
+      setUpdateState(info ? { info } : "up-to-date");
+    } catch {
+      setUpdateState("idle");
+      toast.error("Update check failed — check your internet connection");
+    }
+  }
+
+  if (isLoading || !appSettings) return null;
+
+  function toggle(key: "run_in_tray" | "auto_update") {
+    saveSettings.mutate({ ...appSettings!, [key]: !appSettings![key] });
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        App
+      </p>
+      <div className="space-y-2">
+        <Field
+          label="Tray mode"
+          description="Close button hides to menu bar instead of quitting (macOS)"
+        >
+          <Switch
+            checked={appSettings.run_in_tray}
+            onCheckedChange={() => toggle("run_in_tray")}
+          />
+        </Field>
+
+        <Field
+          label="Check for updates on startup"
+          description="Notifies you when a new release is available"
+        >
+          <Switch
+            checked={appSettings.auto_update}
+            onCheckedChange={() => toggle("auto_update")}
+          />
+        </Field>
+
+        <Field label="Updates" description={version ? `Current: v${version}` : "Check for new releases"}>
+          {updateState === "idle" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCheckUpdate}
+            >
+              Check now
+            </Button>
+          )}
+          {updateState === "checking" && (
+            <Button variant="outline" size="sm" disabled>
+              <Loader2 className="animate-spin" />
+              Checking…
+            </Button>
+          )}
+          {updateState === "up-to-date" && (
+            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <CheckCircle2 className="size-3.5 text-green-500" />
+              Up to date
+            </span>
+          )}
+          {typeof updateState === "object" && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-primary">
+                v{updateState.info.version} available
+              </span>
+              <Button
+                size="sm"
+                onClick={() => openUrl(updateState.info.url)}
+              >
+                <ArrowUpRight className="size-3.5" />
+                Download
+              </Button>
+            </div>
+          )}
+        </Field>
+      </div>
+    </div>
+  );
+}
+
 function Field({
   label,
   description,
@@ -199,7 +306,7 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-6 rounded-lg border border-border bg-card px-4 py-3.5">
+    <div className="flex items-center justify-between gap-6 rounded-lg border border-border bg-card px-4 py-3.5 shadow-sm">
       <div className="min-w-0">
         <Label className="text-sm font-medium text-foreground">{label}</Label>
         {description && (

@@ -88,6 +88,7 @@ setup = [
 | `bin:nvim` | binary or shell function in PATH (e.g. `bin:nvm`) |
 | `file:~/.zshrc` | file must exist |
 | `dir:~/.config/nvim` | directory must exist |
+| `app:Homebrew` | macOS app bundle exists in `/Applications` or `~/Applications` |
 | `cmd:ls ... \| grep x` | shell command must exit 0 |
 | `out:ok` | runs the install command; done when trimmed stdout == `ok` |
 | `skip` | permanently mark as done |
@@ -242,3 +243,13 @@ rtk init --global       # Add RTK to ~/.claude/CLAUDE.md
 
 Overall average: **60-90% token reduction** on common development operations.
 <!-- /rtk-instructions -->
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).

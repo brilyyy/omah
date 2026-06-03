@@ -267,12 +267,12 @@ function DotCard({
   return (
     <div
       className={cn(
-        "group relative rounded-lg border bg-card transition-colors",
+        "group relative rounded-lg border bg-card shadow-sm transition-all duration-200 hover:shadow-md",
         "before:absolute before:left-0 before:top-0 before:bottom-0 before:w-0.75 before:rounded-l-lg",
         accentClass,
         hasIssues
-          ? "border-yellow-500/20 hover:border-yellow-500/35"
-          : "border-border hover:border-border/80",
+          ? "border-yellow-500/20 hover:border-yellow-500/40"
+          : "border-border hover:border-border",
       )}
     >
       <div className="flex items-start justify-between gap-4 px-4 py-3 pl-5">

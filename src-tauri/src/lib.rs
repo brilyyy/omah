@@ -2,11 +2,222 @@ use omah_core::{
     backup, diff, get_default_config_path, load_toml_config, restore, save_toml_config, status,
     DotStatus, FileChange, OmahConfig,
 };
-use serde::Serialize;
-use tauri::Emitter;
+use serde::{Deserialize, Serialize};
+use tauri::{Emitter, Manager};
 use tracing::{error, info, instrument};
 
-// ── Config helper ───────────────────────────────────────────────────────────
+// ── App settings ─────────────────────────────────────────────────────────────
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+pub struct AppSettings {
+    #[serde(default)]
+    pub run_in_tray: bool,
+    #[serde(default)]
+    pub auto_update: bool,
+}
+
+fn app_settings_path() -> std::path::PathBuf {
+    let home = std::env::var("HOME").unwrap_or_default();
+    std::path::PathBuf::from(home).join(".config/omah/app-settings.json")
+}
+
+fn load_app_settings() -> AppSettings {
+    let path = app_settings_path();
+    std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default()
+}
+
+fn persist_app_settings(settings: &AppSettings) -> Result<(), String> {
+    let path = app_settings_path();
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let json = serde_json::to_string_pretty(settings).map_err(|e| e.to_string())?;
+    std::fs::write(&path, json).map_err(|e| e.to_string())
+}
+
+// ── Update check ─────────────────────────────────────────────────────────────
+
+#[derive(Serialize, Clone)]
+pub struct UpdateInfo {
+    pub version: String,
+    pub url: String,
+}
+
+fn semver_gt(remote: &str, current: &str) -> bool {
+    fn parse(v: &str) -> [u32; 3] {
+        let parts: Vec<u32> = v.split('.').filter_map(|x| x.parse().ok()).collect();
+        [
+            parts.first().copied().unwrap_or(0),
+            parts.get(1).copied().unwrap_or(0),
+            parts.get(2).copied().unwrap_or(0),
+        ]
+    }
+    parse(remote) > parse(current)
+}
+
+async fn fetch_update_info() -> Result<Option<UpdateInfo>, String> {
+    let client = reqwest::Client::builder()
+        .user_agent(concat!("omah/", env!("CARGO_PKG_VERSION")))
+        .timeout(std::time::Duration::from_secs(8))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let resp: serde_json::Value = client
+        .get("https://api.github.com/repos/brilyyy/omah/releases/latest")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?
+        .json()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    let tag = resp["tag_name"]
+        .as_str()
+        .unwrap_or("")
+        .trim_start_matches('v');
+
+    let current = env!("CARGO_PKG_VERSION");
+
+    if semver_gt(tag, current) {
+        let url = resp["html_url"]
+            .as_str()
+            .unwrap_or("https://github.com/brilyyy/omah/releases")
+            .to_string();
+        Ok(Some(UpdateInfo {
+            version: tag.to_string(),
+            url,
+        }))
+    } else {
+        Ok(None)
+    }
+}
+
+// ── Tray ─────────────────────────────────────────────────────────────────────
+
+fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
+fn compute_status_str() -> String {
+    match load_config().and_then(|c| status(&c).map_err(|e| e.to_string())) {
+        Ok(statuses) => {
+            let total = statuses.len();
+            if total == 0 {
+                return "— no dotfiles configured".to_string();
+            }
+            let backed_up = statuses.iter().filter(|s| s.backed_up).count();
+            if backed_up == total {
+                format!("● {backed_up}/{total} synced")
+            } else {
+                format!("⚠ {backed_up}/{total} synced")
+            }
+        }
+        Err(_) => "— status unavailable".to_string(),
+    }
+}
+
+fn build_tray_menu(
+    app: &tauri::AppHandle,
+    status_str: &str,
+) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
+    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+
+    let status_item = MenuItem::with_id(app, "status", status_str, false, None::<&str>)?;
+    let show = MenuItem::with_id(app, "show", "Show omah", true, None::<&str>)?;
+    let backup = MenuItem::with_id(app, "backup_all", "Backup All", true, None::<&str>)?;
+    let check_upd =
+        MenuItem::with_id(app, "check_update", "Check for Updates…", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit omah", true, None::<&str>)?;
+
+    Menu::with_items(
+        app,
+        &[
+            &status_item,
+            &PredefinedMenuItem::separator(app)?,
+            &show,
+            &PredefinedMenuItem::separator(app)?,
+            &backup,
+            &PredefinedMenuItem::separator(app)?,
+            &check_upd,
+            &PredefinedMenuItem::separator(app)?,
+            &quit,
+        ],
+    )
+}
+
+/// Rebuild and apply the tray menu with the given status string.
+/// Also updates the title (ASCII "om" when tray mode is on).
+fn apply_tray_menu(app: &tauri::AppHandle, status_str: &str) {
+    if let Some(tray) = app.tray_by_id("main-tray") {
+        if let Ok(menu) = build_tray_menu(app, status_str) {
+            let _ = tray.set_menu(Some(menu));
+        }
+        let settings = load_app_settings();
+        let _ = tray.set_title(if settings.run_in_tray { Some("om") } else { None });
+    }
+}
+
+fn refresh_tray_status(app: &tauri::AppHandle) {
+    apply_tray_menu(app, &compute_status_str());
+}
+
+fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
+    use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+
+    TrayIconBuilder::with_id("main-tray")
+        .icon(app.default_window_icon().unwrap().clone())
+        .show_menu_on_left_click(false)
+        .tooltip("omah — dotfile manager")
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "show" => show_main_window(app),
+            "backup_all" => {
+                let handle = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    apply_tray_menu(&handle, "⟳ Backing up…");
+                    let _ = tauri::async_runtime::spawn_blocking(|| {
+                        load_config().and_then(|c| backup(&c).map_err(|e| e.to_string()))
+                    })
+                    .await;
+                    refresh_tray_status(&handle);
+                    if let Some(w) = handle.get_webview_window("main") {
+                        let _ = w.emit("status-changed", ());
+                    }
+                });
+            }
+            "check_update" => {
+                show_main_window(app);
+                if let Some(w) = app.get_webview_window("main") {
+                    let _ = w.emit("tray-check-update", ());
+                }
+            }
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main_window(tray.app_handle());
+            }
+        })
+        .build(app)?;
+
+    // Apply initial menu + title
+    refresh_tray_status(app);
+
+    Ok(())
+}
+
+// ── Config helper ─────────────────────────────────────────────────────────────
 
 fn load_config() -> Result<OmahConfig, String> {
     let path = get_default_config_path().map_err(|e| e.to_string())?;
@@ -16,16 +227,14 @@ fn load_config() -> Result<OmahConfig, String> {
     load_toml_config(&path).map_err(|e| e.to_string())
 }
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
 pub struct RunResult {
     pub success: bool,
-    /// Combined stdout + stderr output of the process.
     pub output: String,
 }
 
-/// Payload emitted for each line during a streamed setup step run.
 #[derive(Clone, Serialize)]
 struct SetupStepOutputEvent {
     run_id: String,
@@ -35,7 +244,30 @@ struct SetupStepOutputEvent {
     success: Option<bool>,
 }
 
-// ── Commands ────────────────────────────────────────────────────────────────
+// ── Commands — app settings ───────────────────────────────────────────────────
+
+#[tauri::command]
+fn get_app_settings() -> AppSettings {
+    load_app_settings()
+}
+
+#[tauri::command]
+fn save_app_settings(app: tauri::AppHandle, settings: AppSettings) -> Result<(), String> {
+    persist_app_settings(&settings)?;
+    if let Some(tray) = app.tray_by_id("main-tray") {
+        let _ = tray.set_title(if settings.run_in_tray { Some("om") } else { None });
+    }
+    Ok(())
+}
+
+// ── Commands — update ─────────────────────────────────────────────────────────
+
+#[tauri::command]
+async fn check_update() -> Result<Option<UpdateInfo>, String> {
+    fetch_update_info().await
+}
+
+// ── Commands — dotfiles ───────────────────────────────────────────────────────
 
 #[tauri::command]
 #[instrument]
@@ -63,13 +295,15 @@ fn get_status() -> Result<Vec<DotStatus>, String> {
 
 #[tauri::command]
 #[instrument]
-fn backup_all() -> Result<(), String> {
+fn backup_all(app: tauri::AppHandle) -> Result<(), String> {
     info!("backup_all");
     let config = load_config()?;
-    backup(&config).map_err(|e| {
+    let result = backup(&config).map_err(|e| {
         error!("{e}");
         e.to_string()
-    })
+    });
+    refresh_tray_status(&app);
+    result
 }
 
 #[tauri::command]
@@ -85,7 +319,7 @@ fn restore_all() -> Result<(), String> {
 
 #[tauri::command]
 #[instrument]
-fn backup_one(name: String) -> Result<(), String> {
+fn backup_one(app: tauri::AppHandle, name: String) -> Result<(), String> {
     info!("backup_one: {name}");
     let config = load_config()?;
     let dot = config
@@ -98,10 +332,12 @@ fn backup_one(name: String) -> Result<(), String> {
         dots: vec![dot],
         ..config
     };
-    backup(&single).map_err(|e| {
+    let result = backup(&single).map_err(|e| {
         error!("{e}");
         e.to_string()
-    })
+    });
+    refresh_tray_status(&app);
+    result
 }
 
 #[tauri::command]
@@ -147,8 +383,6 @@ fn get_diff() -> Result<Vec<FileChange>, String> {
     })
 }
 
-/// Run an arbitrary shell command via `sh -c` and return its output.
-/// Used to execute setup steps defined in the user's config.
 #[tauri::command]
 #[instrument(skip(command))]
 async fn run_setup_step(command: String) -> Result<RunResult, String> {
@@ -178,7 +412,7 @@ async fn run_setup_step(command: String) -> Result<RunResult, String> {
     })
 }
 
-// ── Streaming helpers ────────────────────────────────────────────────────────
+// ── Streaming helpers ─────────────────────────────────────────────────────────
 
 fn emit_line(
     window: &tauri::WebviewWindow,
@@ -211,8 +445,6 @@ fn emit_done(window: &tauri::WebviewWindow, run_id: &str, success: bool) {
     );
 }
 
-/// Spawn a shell command, stream each stdout/stderr line as events, and return
-/// whether the process exited successfully. Does NOT emit a `done` event.
 async fn stream_command(
     window: &tauri::WebviewWindow,
     run_id: &str,
@@ -262,10 +494,8 @@ async fn stream_command(
         .map_err(|e| e.to_string())
 }
 
-// ── Streaming commands ───────────────────────────────────────────────────────
+// ── Streaming commands ────────────────────────────────────────────────────────
 
-/// Run a setup step and stream each output line as a Tauri event.
-/// The frontend subscribes to `setup_step_output` events filtered by `run_id`.
 #[tauri::command]
 #[instrument(skip(window, command))]
 async fn run_setup_step_stream(
@@ -279,7 +509,6 @@ async fn run_setup_step_stream(
     Ok(())
 }
 
-/// Install all missing deps for a dotfile and stream the output.
 #[tauri::command]
 #[instrument(skip(window))]
 async fn install_missing_deps(
@@ -318,7 +547,6 @@ async fn install_missing_deps(
     Ok(())
 }
 
-/// Run all pending setup steps for a dotfile in sequence, streaming output.
 #[tauri::command]
 #[instrument(skip(window))]
 async fn run_pending_setups(
@@ -354,7 +582,6 @@ async fn run_pending_setups(
     let mut all_ok = true;
 
     for (i, cmd) in pending.iter().enumerate() {
-        // Step header separator
         emit_line(
             &window,
             &run_id,
@@ -380,7 +607,7 @@ async fn run_pending_setups(
     Ok(())
 }
 
-// ── App entry ───────────────────────────────────────────────────────────────
+// ── App entry ─────────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -398,6 +625,44 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            setup_tray(app.handle())?;
+
+            // Hide to tray on close when run_in_tray is enabled
+            if let Some(window) = app.get_webview_window("main") {
+                let handle = app.handle().clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        if load_app_settings().run_in_tray {
+                            if let Some(w) = handle.get_webview_window("main") {
+                                let _ = w.hide();
+                            }
+                            api.prevent_close();
+                        }
+                    }
+                });
+            }
+
+            // Background update check on startup
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                // Small delay so the window finishes loading first
+                tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                if load_app_settings().auto_update {
+                    match fetch_update_info().await {
+                        Ok(Some(info)) => {
+                            if let Some(w) = handle.get_webview_window("main") {
+                                let _ = w.emit("update-available", info);
+                            }
+                        }
+                        Ok(None) => {}
+                        Err(e) => tracing::warn!("update check failed: {e}"),
+                    }
+                }
+            });
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_version,
             get_config,
@@ -412,6 +677,9 @@ pub fn run() {
             run_setup_step_stream,
             install_missing_deps,
             run_pending_setups,
+            get_app_settings,
+            save_app_settings,
+            check_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

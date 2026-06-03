@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 const DONATE_URL = "https://github.com/sponsors/brilyyy";
 const STORAGE_DONATED = "omah-donated";
 const STORAGE_SNOOZED = "omah-donation-snoozed";
-const SNOOZE_MS = 3 * 24 * 60 * 60 * 1000; // 7 days
+const SNOOZE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 function shouldShow(): boolean {
   if (localStorage.getItem(STORAGE_DONATED)) return false;

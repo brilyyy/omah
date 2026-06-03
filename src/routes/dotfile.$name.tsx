@@ -471,6 +471,7 @@ function SetupStepRow({
     if (c.startsWith("bin:")) return `binary: ${c.slice(4)}`;
     if (c.startsWith("file:")) return `file: ${c.slice(5)}`;
     if (c.startsWith("dir:")) return `dir: ${c.slice(4)}`;
+    if (c.startsWith("app:")) return `app: ${c.slice(4)}`;
     if (c.startsWith("cmd:")) return `command: ${c.slice(4)}`;
     return c;
   })();
@@ -618,7 +619,7 @@ function Section({
         </p>
         {action}
       </div>
-      <div className="rounded-lg border border-border bg-card px-4">{children}</div>
+      <div className="rounded-lg border border-border bg-card px-4 shadow-sm">{children}</div>
     </div>
   );
 }
