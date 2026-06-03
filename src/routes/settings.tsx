@@ -108,7 +108,7 @@ function SettingsView() {
           <Button
             size="sm"
             onClick={() => saveMutation.mutate(form as Config)}
-            disabled={!dirty || saveMutation.isPending}
+            disabled={!dirty || saveMutation.isPending || !form.vault_path?.trim()}
           >
             {saveMutation.isPending ? (
               <Loader2 className="animate-spin" />
@@ -199,7 +199,7 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-6 rounded-lg border border-border bg-card px-4 py-3.5">
+    <div className="flex items-center justify-between gap-6 rounded-lg border border-border bg-card px-4 py-3.5 shadow-sm">
       <div className="min-w-0">
         <Label className="text-sm font-medium text-foreground">{label}</Label>
         {description && (

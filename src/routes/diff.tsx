@@ -140,7 +140,7 @@ function DotDiff({ name, files }: { name: string; files: FileChange[] }) {
   const removed = files.filter((f) => f.kind === "Removed").length;
 
   return (
-    <div className="rounded-lg border border-border bg-card overflow-hidden">
+    <div className="rounded-lg border border-border bg-card overflow-hidden shadow-sm">
       <div className="flex items-center gap-3 border-b border-border bg-muted/30 px-4 py-2.5">
         <span className="font-medium text-sm text-foreground">{name}</span>
         <div className="flex items-center gap-2 text-xs">

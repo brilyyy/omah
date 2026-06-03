@@ -618,7 +618,7 @@ function Section({
         </p>
         {action}
       </div>
-      <div className="rounded-lg border border-border bg-card px-4">{children}</div>
+      <div className="rounded-lg border border-border bg-card px-4 shadow-sm">{children}</div>
     </div>
   );
 }
