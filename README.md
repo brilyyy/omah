@@ -1,60 +1,110 @@
-# omah
+<div align="center">
 
-A dotfile manager written in Rust with a Tauri desktop app.
+```
 
-> **omah** — Javanese for *home*
+    ╔╦╗╔═╗╦═╗╔═╗╔╦╗  ╦╔═╗╔═╗╦═╗╔╦╗
+     ║ ║╣ ╠╦╝╠═╣ ║   ║╚═╗║╣ ╠╦╝║║║
+     ╩ ╚═╝╩╚═╩ ╩ ╩   ╩╚═╝╚═╝╩╚═╩ ╩
 
-Back up your configuration files to a centralized vault. Restore them on any machine with one command.
+```
+
+### *Your dotfiles' home.*
+
+**omah** is a dotfile manager that keeps your config files safe in a vault and restores them on any machine with one command.
+
+[![CI](https://github.com/brilyyy/omah/actions/workflows/test.yml/badge.svg)](https://github.com/brilyyy/omah/actions)
+[![Release](https://img.shields.io/github/v/release/brilyyy/omah)](https://github.com/brilyyy/omah/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+</div>
 
 ---
 
-## Install
+## ✨ What can omah do?
 
-### Download binary
+<details>
+<summary><strong>Core Features</strong></summary>
 
-Grab the latest release from the [Releases](../../releases) page:
+- [x] **Backup & Restore** — copy dotfiles into a vault, restore them on any machine
+- [x] **Per-dotfile operations** — backup or restore a single dotfile by name
+- [x] **Symlink mode** — replace source with a symlink into the vault
+- [x] **Diff viewer** — see what changed between your live files and the vault
+- [x] **Status dashboard** — live sync state for every configured dotfile
+- [x] **Exclude patterns** — glob-based file filtering (skip `.log`, `.git`, etc.)
+- [x] **Git integration** — auto-commit vault after backup (`git = true`)
+- [x] **Dependency checking** — verify required binaries and shell functions are available before restore
+- [x] **Setup steps** — run shell commands after restore, with smart skip checks
+- [x] **OS & package manager detection** — works on macOS and Linux, auto-detects brew/apt/pacman
+
+</details>
+
+<details open>
+<summary><strong>Desktop App</strong></summary>
+
+- [x] Beautiful dark/light theme (Batik-inspired earth tones)
+- [x] Dotfile list with live sync status badges
+- [x] Backup & restore per dotfile or all at once
+- [x] Inline diff viewer
+- [x] Add / edit dotfile dialog (name, source, symlink, deps, setup, excludes)
+- [x] Streaming terminal output for setup steps
+- [x] Tray icon & menubar mode (macOS)
+- [x] Auto-update checker
+- [x] Donation dialog
+
+</details>
+
+<details>
+<summary><strong>CLI Commands</strong></summary>
+
+- [x] `omah init` — scaffold config on first run
+- [x] `omah backup` — back up all dotfiles (or just one)
+- [x] `omah restore` — restore all dotfiles (or just one)
+- [x] `omah status` — show sync state
+- [x] `omah diff` — show what changed
+- [x] `omah list` — list configured dotfiles
+- [x] `omah add` — add a dotfile entry
+- [x] `omah remove` — remove a dotfile entry
+
+</details>
+
+---
+
+## 🚀 Quick Start
+
+### Install
+
+**Prebuilt binaries** — grab the latest from [Releases](https://github.com/brilyyy/omah/releases):
 
 | Platform | File |
 |----------|------|
-| macOS (Apple Silicon) | `omah-macos-aarch64` |
-| macOS (Intel) | `omah-macos-x86_64` |
-| Linux (x86_64) | `omah-linux-x86_64` |
+| macOS (Apple Silicon) | `omah-v*-macos-aarch64.tar.gz` · `omah_*.aarch64.dmg` |
+| macOS (Intel) | `omah-v*-macos-x86_64.tar.gz` · `omah_*.x64.dmg` |
+| Linux (x86_64) | `omah-v*-linux-x86_64.tar.gz` · `omah_*.AppImage` |
 
 ```sh
-chmod +x omah-*
-mv omah-* /usr/local/bin/omah
+# Quick install (macOS / Linux)
+curl -fsSL https://raw.githubusercontent.com/brilyyy/omah/master/install.sh | bash
+
+# Or manually
+chmod +x omah-* && mv omah-* /usr/local/bin/omah
 ```
 
-### Build from source
+**Build from source:**
 
 ```sh
-cargo build --release
-cp target/release/omah /usr/local/bin/omah
+cargo install --path crates/omah_bin
 ```
 
----
-
-## Quick start
+### Set it up
 
 ```sh
-omah init       # create ~/.config/omah/omah-config.toml
-# edit the config to add your dotfiles, then:
-omah backup     # copy dotfiles into the vault
-omah status     # see what's in sync
-omah diff       # show what changed since last backup
-omah restore    # copy dotfiles back from the vault
+omah init          # creates ~/.config/omah/omah-config.toml
 ```
 
----
-
-## Config
-
-Default location: `~/.config/omah/omah-config.toml`. Override with `--config <path>`.
+Edit the config to add your dotfiles:
 
 ```toml
 vault_path = "~/Documents/OmahVault"
-os = "auto"            # "auto" | "macos" | "linux"
-pkg_manager = "auto"   # "auto" | "brew" | "apt-get" | "pacman" | "dnf" | "zypper"
 
 [[dots]]
 name = "Zsh"
@@ -66,200 +116,103 @@ name = "Neovim"
 source = "~/.config/nvim"
 deps = ["nvim", "git", "ripgrep"]
 exclude = ["*.log", ".git"]
-setup = [
-  { check = "dir:~/.local/share/nvim", install = "git clone --depth 1 https://github.com/AstroNvim/template ~/.config/nvim" }
-]
 ```
 
-### Fields
+### Use it
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `vault_path` | string | Where dotfiles are stored (supports `~`) |
-| `os` | string | Target OS — `"auto"` detects at runtime |
-| `pkg_manager` | string | Package manager for installing deps — `"auto"` detects from PATH |
-| `name` | string | Label for the dotfile; also used as the vault subfolder name |
-| `source` | string | Path to the dotfile or directory on your machine (supports `~`) |
-| `symlink` | bool | When `true`, backup moves the source into the vault and leaves a symlink |
-| `deps` | string[] | Binaries or shell functions that must be available (checked via PATH and interactive shell) |
-| `setup` | array | Shell commands to run after restore — each entry has `install` (required) and optional `check` |
-| `exclude` | string[] | Glob patterns for files/dirs to skip when copying a source directory |
+```sh
+omah backup         # save your dotfiles to the vault
+omah status         # check what's synced
+omah diff           # see what changed since last backup
+omah restore        # put dotfiles back from the vault
+omah backup zsh     # backup a single dotfile
+omah -c path.toml   # use a custom config file
+```
 
-### Setup step `check` values
+> **Tip:** Use `omah backup --no-exclude` to ignore exclude patterns.
 
-Controls when a setup step is considered done and skipped:
+---
 
-| Value | Skipped when |
+## 🖥️ Desktop App
+
+Download **.dmg** (macOS) or **.AppImage** (Linux) from [Releases](https://github.com/brilyyy/omah/releases).
+
+The desktop app gives you everything the CLI does, plus:
+
+- A visual dotfile dashboard with status badges
+- Inline diff viewer
+- Streaming terminal for setup steps
+- Tray icon mode — stays out of your way
+- Auto-update notifications
+
+```sh
+# Run the desktop app in dev mode
+bun run tauri dev
+```
+
+---
+
+## 📖 Config
+
+Default location: `~/.config/omah/omah-config.toml`
+
+| Field | What it does |
 |-------|-------------|
-| `bin:<name>` | Binary or shell function is in PATH |
-| `file:<path>` | File exists |
-| `dir:<path>` | Directory exists |
-| `app:<name>` | macOS app bundle exists in `/Applications` or `~/Applications` |
-| `cmd:<shell>` | Shell command exits 0 |
-| `out:<expected>` | `install` command's stdout matches `expected` |
+| `vault_path` | Where your dotfiles are stored |
+| `os` | `"auto"` detects at runtime, or set `"macos"` / `"linux"` |
+| `pkg_manager` | `"auto"` detects, or set `"brew"` / `"apt-get"` / `"pacman"` / `"dnf"` / `"zypper"` |
+| `name` | Label for the dotfile (also the vault subfolder) |
+| `source` | Path to the file or directory on your machine |
+| `symlink` | `true` = replace source with a symlink after backup |
+| `deps` | Binaries that must be installed (e.g. `["nvim", "git"]`) |
+| `setup` | Shell commands to run after restore |
+| `exclude` | Glob patterns to skip (e.g. `["*.log", ".git"]`) |
+
+### Setup step checks
+
+Each setup step can have a `check` value that determines when it's considered done:
+
+| Check | Skipped when... |
+|-------|-----------------|
+| `bin:name` | Binary exists in PATH |
+| `file:path` | File exists |
+| `dir:path` | Directory exists |
+| `app:name` | macOS app exists in /Applications |
+| `cmd:...` | Shell command exits 0 |
+| `out:text` | Install command stdout matches |
 | `skip` | Always skipped |
-| *(empty)* | Never skipped — runs every time |
-
-Each dotfile is stored at `vault/{name}/{filename}`.
 
 ---
 
-## Commands
-
-### `omah init`
-
-Creates `~/.config/omah/` and scaffolds a default `omah-config.toml`. Safe to run multiple times — will not overwrite an existing config.
-
-### `omah backup`
-
-Copies every configured dotfile from its `source` into the vault.
-
-| Flag | Description |
-|------|-------------|
-| `--no-exclude` | Ignore all `exclude` patterns |
-
-### `omah restore`
-
-Copies dotfiles from the vault back to their `source` paths.
-
-Before copying, omah checks for missing deps and pending setup steps. If anything is needed, it shows a numbered action list and asks for confirmation:
-
-```
-The following steps are required before restore:
-
-  [1]  install deps:    brew install nvim git ripgrep
-  [2]  setup  Neovim:  git clone --depth 1 https://... ~/.config/nvim
-
-Run all? [y/N]
-```
-
-### `omah diff`
-
-Shows what has changed between your live source files and the vault snapshot:
-
-```
-Zsh:
-  ~ .zshrc
-
-Neovim:
-  + init.lua
-  ~ lua/plugins.lua
-  - lua/old-module.lua
-```
-
-`+` added in source, `~` modified, `-` removed from source (still in vault).
-
-### `omah status`
-
-Shows sync state for every configured dotfile:
-
-```
-Vault: ~/Documents/OmahVault
-
-  Zsh       ~/.zshrc              backed up
-  Neovim    ~/.config/nvim        backed up  [symlinked]
-  Custom    ~/.my-custom-rc       NOT backed up
-            missing deps:  curl
-            pending setup: git clone ...
-```
-
-### `omah list`
-
-Lists all configured dotfiles with their source paths and symlink flag.
-
----
-
-## Desktop app
-
-Download `.dmg` (macOS) or `.AppImage` (Linux) from the [Releases](../../releases) page.
-
-The desktop app provides a visual interface for everything the CLI does — plus streaming terminal output for setup steps and an inline diff viewer.
-
----
-
-## Development
-
-### Setup
+## 🤝 Contributing
 
 ```sh
-git clone <repo>
+git clone https://github.com/brilyyy/omah.git
 cd omah
-bun run hooks   # activate commit-msg hook (enforces Conventional Commits)
+bun run dev          # frontend dev server
+bun run tauri dev    # desktop app dev mode
+cargo test           # run tests
+cargo clippy         # lint
 ```
 
-### Commands
-
-| Command | Description |
-|---------|-------------|
-| `bun run cargo:check` | Fast compile check |
-| `bun run cargo:test` | Run all workspace tests |
-| `bun run cargo:lint` | Clippy (warnings as errors) |
-| `bun run cargo:fmt` | Auto-format Rust code |
-| `bun run cargo:build` | Build release binary |
-| `bun run cli:install` | Build + copy binary to `/usr/local/bin/omah` |
-| `bun run dev` | Vite dev server (frontend only) |
-| `bun run tauri dev` | Tauri desktop app in dev mode |
-| `bun run build` | Build frontend for production |
-| `bun run tauri build` | Build desktop app for release |
-| `bun run check` | Biome lint + format check on `src/` |
-| `bacon` | Watch: re-runs `cargo check` on save |
-| `bacon test` | Watch: re-runs tests on save |
-
-### Commit messages
-
-Follows [Conventional Commits](https://www.conventionalcommits.org/):
-
-```
-feat: add shell completion generation
-fix(backup): skip unreadable symlink targets
-docs: update README installation section
-```
-
-Allowed types: `feat`, `fix`, `hotfix`, `docs`, `chore`, `refactor`, `test`, `style`, `ci`, `perf`, `build`
-
-The `commit-msg` hook validates this after `bun run hooks`.
-
-### CI
-
-| Trigger | Jobs |
-|---------|------|
-| Every push | `cargo test --workspace --exclude omah_desktop --locked` |
-| Tag `v*` on `master`/`main` | Build CLI (3 platforms) + Desktop bundles (3 platforms) → GitHub Release |
-
-### Releasing
-
-```sh
-# 1. Bump version in crates/omah_bin/Cargo.toml
-git commit -m "chore: bump version to 1.4.0"
-bun run tag   # reads version from Cargo.toml, creates + pushes tag
-```
-
-#### Release targets
-
-| Platform | CLI binary | Desktop bundle |
-|----------|------------|----------------|
-| Linux x86_64 (musl) | `omah-v{ver}-linux-x86_64.tar.gz` | `omah_{ver}_amd64.AppImage` |
-| macOS Apple Silicon | `omah-v{ver}-macos-aarch64.tar.gz` | `omah_{ver}_aarch64.dmg` |
-| macOS Intel | `omah-v{ver}-macos-x86_64.tar.gz` | `omah_{ver}_x64.dmg` |
-
----
-
-## Project structure
+<details>
+<summary><strong>Project structure</strong></summary>
 
 ```
 crates/
 ├── omah_structs/   # Core data types
-├── omah_lib/       # Business logic: config, backup, restore, status, diff, deps
-├── omah_core/      # Re-exports omah_lib + omah_structs
-└── omah_bin/       # CLI entry point (clap)
+├── omah_lib/       # Business logic (backup, restore, diff, deps)
+├── omah_core/      # Re-exports for the desktop app
+└── omah_bin/       # CLI entry point
 
-src/                # React frontend (TanStack Router/Query, shadcn/ui)
-src-tauri/          # Tauri v2 backend — exposes omah_core via Tauri commands
+src/                # React frontend (TanStack Router, shadcn/ui)
+src-tauri/          # Tauri v2 backend
 ```
+
+</details>
 
 ---
 
-## docs/
+## 📄 License
 
-- [TODO.md](docs/TODO.md) — feature roadmap
-- [PLAN.md](docs/PLAN.md) — UX improvement plan
+MIT © [brilyyy](https://github.com/brilyyy)

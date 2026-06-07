@@ -1,11 +1,11 @@
-import appIcon from "@/assets/icon.png";
+import appIcon from "@/assets/icon.webp";
 import {
   createRootRoute,
   Link,
   Outlet,
   useRouterState,
 } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowUpRight,
   FileDiff,
@@ -58,28 +58,14 @@ const NAV: {
 
 function RootLayout() {
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
-  const queryClient = useQueryClient();
-
   useEffect(() => {
     const unlisten = listen<UpdateInfo>("update-available", (e) => {
       setUpdateInfo(e.payload);
     });
-    const unlistenTray = listen("tray-check-update", async () => {
-      try {
-        const info = await ipc.checkUpdate();
-        if (info) setUpdateInfo(info);
-      } catch {}
-    });
-    // Tray "Backup All" finished — refetch status
-    const unlistenStatus = listen("status-changed", () => {
-      queryClient.invalidateQueries({ queryKey: ["status"] });
-    });
     return () => {
       unlisten.then((fn) => fn());
-      unlistenTray.then((fn) => fn());
-      unlistenStatus.then((fn) => fn());
     };
-  }, [queryClient]);
+  }, []);
 
   return (
     <ThemeProvider storageKey="omah-theme">

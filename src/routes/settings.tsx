@@ -197,7 +197,7 @@ function SettingsView() {
   );
 }
 
-// ── App section (tray + updates) ─────────────────────────────────────────────
+// ── App section (updates) ────────────────────────────────────────────────────
 
 function AppSection() {
   const { data: appSettings, isLoading } = useAppSettings();
@@ -224,10 +224,6 @@ function AppSection() {
 
   if (isLoading || !appSettings) return null;
 
-  function toggle(key: "run_in_tray" | "auto_update") {
-    saveSettings.mutate({ ...appSettings!, [key]: !appSettings![key] });
-  }
-
   return (
     <div className="space-y-3">
       <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -235,32 +231,20 @@ function AppSection() {
       </p>
       <div className="space-y-2">
         <Field
-          label="Tray mode"
-          description="Close button hides to menu bar instead of quitting (macOS)"
-        >
-          <Switch
-            checked={appSettings.run_in_tray}
-            onCheckedChange={() => toggle("run_in_tray")}
-          />
-        </Field>
-
-        <Field
           label="Check for updates on startup"
           description="Notifies you when a new release is available"
         >
           <Switch
             checked={appSettings.auto_update}
-            onCheckedChange={() => toggle("auto_update")}
+            onCheckedChange={() =>
+              saveSettings.mutate({ ...appSettings, auto_update: !appSettings.auto_update })
+            }
           />
         </Field>
 
         <Field label="Updates" description={version ? `Current: v${version}` : "Check for new releases"}>
           {updateState === "idle" && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleCheckUpdate}
-            >
+            <Button variant="outline" size="sm" onClick={handleCheckUpdate}>
               Check now
             </Button>
           )}
@@ -281,10 +265,7 @@ function AppSection() {
               <span className="text-sm font-medium text-primary">
                 v{updateState.info.version} available
               </span>
-              <Button
-                size="sm"
-                onClick={() => openUrl(updateState.info.url)}
-              >
+              <Button size="sm" onClick={() => openUrl(updateState.info.url)}>
                 <ArrowUpRight className="size-3.5" />
                 Download
               </Button>

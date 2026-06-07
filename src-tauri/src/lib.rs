@@ -3,15 +3,13 @@ use omah_core::{
     DotStatus, FileChange, OmahConfig,
 };
 use serde::{Deserialize, Serialize};
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 use tracing::{error, info, instrument};
 
 // ── App settings ─────────────────────────────────────────────────────────────
 
 #[derive(Serialize, Deserialize, Clone, Default)]
 pub struct AppSettings {
-    #[serde(default)]
-    pub run_in_tray: bool,
     #[serde(default)]
     pub auto_update: bool,
 }
@@ -95,128 +93,6 @@ async fn fetch_update_info() -> Result<Option<UpdateInfo>, String> {
     }
 }
 
-// ── Tray ─────────────────────────────────────────────────────────────────────
-
-fn show_main_window(app: &tauri::AppHandle) {
-    if let Some(w) = app.get_webview_window("main") {
-        let _ = w.show();
-        let _ = w.set_focus();
-    }
-}
-
-fn compute_status_str() -> String {
-    match load_config().and_then(|c| status(&c).map_err(|e| e.to_string())) {
-        Ok(statuses) => {
-            let total = statuses.len();
-            if total == 0 {
-                return "— no dotfiles configured".to_string();
-            }
-            let backed_up = statuses.iter().filter(|s| s.backed_up).count();
-            if backed_up == total {
-                format!("● {backed_up}/{total} synced")
-            } else {
-                format!("⚠ {backed_up}/{total} synced")
-            }
-        }
-        Err(_) => "— status unavailable".to_string(),
-    }
-}
-
-fn build_tray_menu(
-    app: &tauri::AppHandle,
-    status_str: &str,
-) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
-    use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
-
-    let status_item = MenuItem::with_id(app, "status", status_str, false, None::<&str>)?;
-    let show = MenuItem::with_id(app, "show", "Show omah", true, None::<&str>)?;
-    let backup = MenuItem::with_id(app, "backup_all", "Backup All", true, None::<&str>)?;
-    let check_upd =
-        MenuItem::with_id(app, "check_update", "Check for Updates…", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit omah", true, None::<&str>)?;
-
-    Menu::with_items(
-        app,
-        &[
-            &status_item,
-            &PredefinedMenuItem::separator(app)?,
-            &show,
-            &PredefinedMenuItem::separator(app)?,
-            &backup,
-            &PredefinedMenuItem::separator(app)?,
-            &check_upd,
-            &PredefinedMenuItem::separator(app)?,
-            &quit,
-        ],
-    )
-}
-
-/// Rebuild and apply the tray menu with the given status string.
-/// Also updates the title (ASCII "om" when tray mode is on).
-fn apply_tray_menu(app: &tauri::AppHandle, status_str: &str) {
-    if let Some(tray) = app.tray_by_id("main-tray") {
-        if let Ok(menu) = build_tray_menu(app, status_str) {
-            let _ = tray.set_menu(Some(menu));
-        }
-        let settings = load_app_settings();
-        let _ = tray.set_title(if settings.run_in_tray { Some("om") } else { None });
-    }
-}
-
-fn refresh_tray_status(app: &tauri::AppHandle) {
-    apply_tray_menu(app, &compute_status_str());
-}
-
-fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
-    use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-
-    TrayIconBuilder::with_id("main-tray")
-        .icon(app.default_window_icon().unwrap().clone())
-        .show_menu_on_left_click(false)
-        .tooltip("omah — dotfile manager")
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "show" => show_main_window(app),
-            "backup_all" => {
-                let handle = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    apply_tray_menu(&handle, "⟳ Backing up…");
-                    let _ = tauri::async_runtime::spawn_blocking(|| {
-                        load_config().and_then(|c| backup(&c).map_err(|e| e.to_string()))
-                    })
-                    .await;
-                    refresh_tray_status(&handle);
-                    if let Some(w) = handle.get_webview_window("main") {
-                        let _ = w.emit("status-changed", ());
-                    }
-                });
-            }
-            "check_update" => {
-                show_main_window(app);
-                if let Some(w) = app.get_webview_window("main") {
-                    let _ = w.emit("tray-check-update", ());
-                }
-            }
-            "quit" => app.exit(0),
-            _ => {}
-        })
-        .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click {
-                button: MouseButton::Left,
-                button_state: MouseButtonState::Up,
-                ..
-            } = event
-            {
-                show_main_window(tray.app_handle());
-            }
-        })
-        .build(app)?;
-
-    // Apply initial menu + title
-    refresh_tray_status(app);
-
-    Ok(())
-}
-
 // ── Config helper ─────────────────────────────────────────────────────────────
 
 fn load_config() -> Result<OmahConfig, String> {
@@ -252,12 +128,8 @@ fn get_app_settings() -> AppSettings {
 }
 
 #[tauri::command]
-fn save_app_settings(app: tauri::AppHandle, settings: AppSettings) -> Result<(), String> {
-    persist_app_settings(&settings)?;
-    if let Some(tray) = app.tray_by_id("main-tray") {
-        let _ = tray.set_title(if settings.run_in_tray { Some("om") } else { None });
-    }
-    Ok(())
+fn save_app_settings(settings: AppSettings) -> Result<(), String> {
+    persist_app_settings(&settings)
 }
 
 // ── Commands — update ─────────────────────────────────────────────────────────
@@ -295,15 +167,13 @@ fn get_status() -> Result<Vec<DotStatus>, String> {
 
 #[tauri::command]
 #[instrument]
-fn backup_all(app: tauri::AppHandle) -> Result<(), String> {
+fn backup_all() -> Result<(), String> {
     info!("backup_all");
     let config = load_config()?;
-    let result = backup(&config).map_err(|e| {
+    backup(&config).map_err(|e| {
         error!("{e}");
         e.to_string()
-    });
-    refresh_tray_status(&app);
-    result
+    })
 }
 
 #[tauri::command]
@@ -319,7 +189,7 @@ fn restore_all() -> Result<(), String> {
 
 #[tauri::command]
 #[instrument]
-fn backup_one(app: tauri::AppHandle, name: String) -> Result<(), String> {
+fn backup_one(name: String) -> Result<(), String> {
     info!("backup_one: {name}");
     let config = load_config()?;
     let dot = config
@@ -332,12 +202,10 @@ fn backup_one(app: tauri::AppHandle, name: String) -> Result<(), String> {
         dots: vec![dot],
         ..config
     };
-    let result = backup(&single).map_err(|e| {
+    backup(&single).map_err(|e| {
         error!("{e}");
         e.to_string()
-    });
-    refresh_tray_status(&app);
-    result
+    })
 }
 
 #[tauri::command]
@@ -420,6 +288,7 @@ fn emit_line(
     line: impl Into<String>,
     is_stderr: bool,
 ) {
+    use tauri::Emitter;
     let _ = window.emit(
         "setup_step_output",
         SetupStepOutputEvent {
@@ -433,6 +302,7 @@ fn emit_line(
 }
 
 fn emit_done(window: &tauri::WebviewWindow, run_id: &str, success: bool) {
+    use tauri::Emitter;
     let _ = window.emit(
         "setup_step_output",
         SetupStepOutputEvent {
@@ -626,31 +496,14 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            setup_tray(app.handle())?;
-
-            // Hide to tray on close when run_in_tray is enabled
-            if let Some(window) = app.get_webview_window("main") {
-                let handle = app.handle().clone();
-                window.on_window_event(move |event| {
-                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                        if load_app_settings().run_in_tray {
-                            if let Some(w) = handle.get_webview_window("main") {
-                                let _ = w.hide();
-                            }
-                            api.prevent_close();
-                        }
-                    }
-                });
-            }
-
             // Background update check on startup
             let handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                // Small delay so the window finishes loading first
                 tokio::time::sleep(std::time::Duration::from_secs(3)).await;
                 if load_app_settings().auto_update {
                     match fetch_update_info().await {
                         Ok(Some(info)) => {
+                            use tauri::Emitter;
                             if let Some(w) = handle.get_webview_window("main") {
                                 let _ = w.emit("update-available", info);
                             }

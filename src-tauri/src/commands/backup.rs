@@ -1,0 +1,72 @@
+use std::io::{self, Write};
+use std::path::Path;
+
+use anyhow::Result;
+use expand_tilde::ExpandTilde;
+use omah_lib::{config::load_toml_config, ops::backup};
+
+pub fn run(config_path: &Path, no_exclude: bool, name: Option<&str>) -> Result<()> {
+    let mut config = load_toml_config(config_path)?;
+
+    if let Some(n) = name {
+        config.dots.retain(|d| d.name == n);
+        if config.dots.is_empty() {
+            anyhow::bail!("Dotfile '{}' not found in config", n);
+        }
+    }
+
+    if no_exclude {
+        for dot in &mut config.dots {
+            dot.exclude = None;
+        }
+    }
+
+    let vault = config
+        .vault_path
+        .expand_tilde()
+        .map(|p| p.to_path_buf())
+        .map_err(|_| anyhow::anyhow!("Failed to expand vault path"))?;
+
+    let symlink_dots: Vec<&str> = config
+        .dots
+        .iter()
+        .filter(|d| {
+            if !d.symlink.unwrap_or(false) {
+                return false;
+            }
+            let Ok(source) = d.source.expand_tilde().map(|p| p.to_path_buf()) else {
+                return true;
+            };
+            let Ok(filename) = source.file_name().ok_or(()) else {
+                return true;
+            };
+            let dest = vault.join(&d.name).join(filename);
+            let already = source.is_symlink()
+                && std::fs::read_link(&source)
+                    .map(|t| t == dest)
+                    .unwrap_or(false);
+            !already
+        })
+        .map(|d| d.name.as_str())
+        .collect();
+
+    if !symlink_dots.is_empty() {
+        println!("The following dotfiles will have their source replaced with a symlink:");
+        for name in &symlink_dots {
+            println!("  - {name}");
+        }
+        print!("\nContinue? [y/N] ");
+        io::stdout().flush()?;
+        let mut answer = String::new();
+        io::stdin().read_line(&mut answer)?;
+        if !answer.trim().eq_ignore_ascii_case("y") {
+            println!("Aborted.");
+            return Ok(());
+        }
+    }
+
+    backup(&config)?;
+    println!("Backup complete → {}", config.vault_path);
+
+    Ok(())
+}
