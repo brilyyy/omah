@@ -224,6 +224,8 @@ function DotsView() {
                   onRestore={() => restoreOneMutation.mutate(dot.name)}
                   onDelete={() => deleteMutation.mutate(dotIndex)}
                   disabled={isBusy || deleteMutation.isPending}
+                  isBackingUp={backupOneMutation.isPending && backupOneMutation.variables === dot.name}
+                  isRestoring={restoreOneMutation.isPending && restoreOneMutation.variables === dot.name}
                 />
               );
             })}
@@ -244,6 +246,8 @@ function DotCard({
   onRestore,
   onDelete,
   disabled,
+  isBackingUp = false,
+  isRestoring = false,
 }: {
   dot: DotfileStatus;
   dotIndex: number;
@@ -252,6 +256,8 @@ function DotCard({
   onRestore: () => void;
   onDelete: () => void;
   disabled: boolean;
+  isBackingUp?: boolean;
+  isRestoring?: boolean;
 }) {
   const hasIssues = dot.missing_deps.length > 0 || dot.pending_setup.length > 0;
 
@@ -348,8 +354,11 @@ function DotCard({
             )}
         </Link>
 
-        {/* Actions — visible on hover */}
-        <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        {/* Actions — visible on hover or while loading */}
+        <div className={cn(
+          "flex shrink-0 items-center gap-1 transition-opacity",
+          (isBackingUp || isRestoring) ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+        )}>
           <Button
             variant="ghost"
             size="icon-sm"
@@ -357,7 +366,9 @@ function DotCard({
             onClick={onRestore}
             title="Restore this dotfile"
           >
-            <ArrowDownToLine className="size-3.5" />
+            {isRestoring
+              ? <Loader2 className="size-3.5 animate-spin" />
+              : <ArrowDownToLine className="size-3.5" />}
           </Button>
           <Button
             variant="ghost"
@@ -366,7 +377,9 @@ function DotCard({
             onClick={onBackup}
             title="Backup this dotfile"
           >
-            <ArrowUpFromLine className="size-3.5" />
+            {isBackingUp
+              ? <Loader2 className="size-3.5 animate-spin" />
+              : <ArrowUpFromLine className="size-3.5" />}
           </Button>
 
           <div className="mx-0.5 h-4 w-px bg-border" />
