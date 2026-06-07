@@ -56,7 +56,6 @@ export type SetupStepOutputEvent = {
 };
 
 export type AppSettings = {
-  run_in_tray: boolean;
   auto_update: boolean;
 };
 
