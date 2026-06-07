@@ -54,25 +54,17 @@ fn print_banner() {
     println!();
 }
 
-/// True when invoked from a terminal with CLI args, false when launched as GUI.
-///
-/// Detection rules:
-///  - macOS Finder/Dock/app launcher always injects `-psn_*` → GUI
-///  - Any subcommand/flag arg present → CLI
-///  - No args + stdout is a tty → CLI (interactive terminal, show help)
-///  - No args + stdout is not a tty → GUI (desktop app launcher)
+/// True only when an explicit subcommand or flag is provided.
+/// No args always opens the desktop GUI (whether from terminal or app launcher).
 fn is_cli_mode() -> bool {
     let args: Vec<String> = std::env::args().collect();
 
+    // macOS Finder/Dock always injects -psn_*
     if args.iter().any(|a| a.starts_with("-psn")) {
         return false;
     }
 
-    if args.len() > 1 {
-        return true;
-    }
-
-    io::stdout().is_terminal()
+    args.len() > 1
 }
 
 fn cli_main() -> anyhow::Result<()> {
