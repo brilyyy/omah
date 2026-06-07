@@ -19,3 +19,5 @@ plan.md
 .rtk/
 graphify-out/
 .agents/
+
+skills-lock.json
