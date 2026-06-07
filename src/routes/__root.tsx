@@ -1,4 +1,4 @@
-import appIcon from "@/assets/icon.png";
+import appIcon from "@/assets/icon.webp";
 import {
   createRootRoute,
   Link,
