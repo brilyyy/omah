@@ -104,7 +104,33 @@ fn cli_main() -> anyhow::Result<()> {
     }
 }
 
+/// Prepend known binary dirs that macOS .app bundles strip from PATH.
+/// Safe to call before any threads spawn; harmless when dirs are already present.
+fn augment_path() {
+    #[cfg(target_os = "macos")]
+    {
+        const PREPEND: &[&str] = &[
+            "/opt/homebrew/bin",   // Apple Silicon Homebrew
+            "/opt/homebrew/sbin",
+            "/usr/local/bin",      // Intel Homebrew + manually installed
+            "/usr/local/sbin",
+        ];
+        let current = std::env::var("PATH").unwrap_or_default();
+        let extra: Vec<&str> = PREPEND
+            .iter()
+            .copied()
+            .filter(|p| !current.split(':').any(|seg| seg == *p))
+            .collect();
+        if !extra.is_empty() {
+            let new_path = format!("{}:{}", extra.join(":"), current);
+            // SAFETY: called before any threads are spawned.
+            unsafe { std::env::set_var("PATH", new_path) };
+        }
+    }
+}
+
 fn main() {
+    augment_path();
     if is_cli_mode() {
         if let Err(e) = cli_main() {
             eprintln!("Error: {e:#}");

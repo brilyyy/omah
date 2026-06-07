@@ -13,7 +13,12 @@ const windowLabel = getCurrentWindow().label;
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { retry: 1, staleTime: 10_000 },
+    queries: {
+      retry: 1,
+      staleTime: Infinity,         // data only changes via mutations which invalidate
+      refetchOnWindowFocus: false, // Tauri window focus must not trigger IPC refetches
+      refetchOnReconnect: false,   // no network dependency for local data
+    },
   },
 });
 
