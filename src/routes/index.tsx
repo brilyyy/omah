@@ -5,6 +5,7 @@ import {
   ArrowUpFromLine,
   CheckCircle,
   CheckCircle2,
+  FileDiff,
   HardDrive,
   Loader2,
   Pencil,
@@ -15,7 +16,7 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,10 +40,12 @@ import {
   useRestoreOne,
 } from "@/hooks/use-backup-restore";
 import { useDeleteDotfile } from "@/hooks/use-delete-dotfile";
+import { useDiff } from "@/hooks/use-diff";
 import {
   ipc,
   type Dotfile,
   type DotfileStatus,
+  type FileChange,
   type RunResult,
 } from "@/lib/ipc";
 import { cn } from "@/lib/utils";
@@ -62,6 +65,17 @@ function DotsView() {
   const backupOneMutation = useBackupOne();
   const restoreOneMutation = useRestoreOne();
   const deleteMutation = useDeleteDotfile();
+
+  const { data: diffs } = useDiff();
+  const diffMap = useMemo(() => {
+    if (!diffs) return new Map<string, FileChange[]>();
+    return diffs.reduce((m, c) => {
+      const arr = m.get(c.dot_name) ?? [];
+      arr.push(c);
+      m.set(c.dot_name, arr);
+      return m;
+    }, new Map<string, FileChange[]>());
+  }, [diffs]);
 
   const isBusy =
     backupMutation.isPending ||
@@ -227,6 +241,7 @@ function DotsView() {
                   isBackingUp={backupOneMutation.isPending && backupOneMutation.variables === dot.name}
                   isRestoring={restoreOneMutation.isPending && restoreOneMutation.variables === dot.name}
                   isDeleting={deleteMutation.isPending && deleteMutation.variables === dotIndex}
+                  diffChanges={diffMap.get(dot.name)}
                 />
               );
             })}
@@ -250,6 +265,7 @@ function DotCard({
   isBackingUp = false,
   isRestoring = false,
   isDeleting = false,
+  diffChanges,
 }: {
   dot: DotfileStatus;
   dotIndex: number;
@@ -261,6 +277,7 @@ function DotCard({
   isBackingUp?: boolean;
   isRestoring?: boolean;
   isDeleting?: boolean;
+  diffChanges?: FileChange[];
 }) {
   const hasIssues = dot.missing_deps.length > 0 || dot.pending_setup.length > 0;
 
@@ -303,6 +320,11 @@ function DotCard({
           <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
             {dot.source}
           </p>
+
+          {/* Diff indicator */}
+          {diffChanges && diffChanges.length > 0 && (
+            <DiffIndicator changes={diffChanges} />
+          )}
 
           {/* Deps chips — all defined deps, missing ones highlighted */}
           {dotfileConfig?.deps && dotfileConfig.deps.length > 0 && (
@@ -506,6 +528,32 @@ function SetupStepRow({ command }: { command: string }) {
         </div>
       )}
     </div>
+  );
+}
+
+// ── Diff indicator ────────────────────────────────────────────────────────────
+
+function DiffIndicator({ changes }: { changes: FileChange[] }) {
+  const added = changes.filter((c) => c.kind === "Added").length;
+  const modified = changes.filter((c) => c.kind === "Modified").length;
+  const removed = changes.filter((c) => c.kind === "Removed").length;
+
+  return (
+    <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+      <FileDiff className="size-3 shrink-0" />
+      {added > 0 && (
+        <span className="text-green-500">+{added}</span>
+      )}
+      {modified > 0 && (
+        <span className="text-yellow-500">~{modified}</span>
+      )}
+      {removed > 0 && (
+        <span className="text-red-400">-{removed}</span>
+      )}
+      <span>
+        {changes.length} {changes.length === 1 ? "file" : "files"} changed
+      </span>
+    </p>
   );
 }
 
