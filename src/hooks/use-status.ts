@@ -6,5 +6,7 @@ export function useStatus() {
   return useQuery({
     queryKey: queryKeys.status(),
     queryFn: () => ipc.getStatus(),
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 }
