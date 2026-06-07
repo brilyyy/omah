@@ -1,11 +1,12 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createHashHistory, createRouter } from "@tanstack/react-router";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { routeTree } from "./routeTree.gen";
-import AboutWindow from "./components/about-window";
 import "./App.css";
+
+const AboutWindow = lazy(() => import("./components/about-window"));
 
 // Detect which Tauri window we're in before React renders.
 // getCurrentWindow().label is synchronous — it reads from __TAURI_INTERNALS__.
@@ -16,6 +17,7 @@ const queryClient = new QueryClient({
     queries: {
       retry: 1,
       staleTime: Infinity,         // data only changes via mutations which invalidate
+      gcTime: Infinity,            // local app — never GC cached data
       refetchOnWindowFocus: false, // Tauri window focus must not trigger IPC refetches
       refetchOnReconnect: false,   // no network dependency for local data
     },
@@ -39,7 +41,9 @@ if (windowLabel === "about") {
   // About window: standalone UI, no sidebar or router.
   ReactDOM.createRoot(root).render(
     <React.StrictMode>
-      <AboutWindow />
+      <Suspense>
+        <AboutWindow />
+      </Suspense>
     </React.StrictMode>,
   );
 } else {

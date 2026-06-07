@@ -30,7 +30,7 @@ pub fn run(config_path: &Path, name: Option<&str>) -> Result<()> {
         config
             .dots
             .iter()
-            .flat_map(|dot| missing_deps(dot))
+            .flat_map(missing_deps)
             .filter(|d| seen.insert(d.clone()))
             .collect()
     };
