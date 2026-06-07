@@ -226,6 +226,7 @@ function DotsView() {
                   disabled={isBusy || deleteMutation.isPending}
                   isBackingUp={backupOneMutation.isPending && backupOneMutation.variables === dot.name}
                   isRestoring={restoreOneMutation.isPending && restoreOneMutation.variables === dot.name}
+                  isDeleting={deleteMutation.isPending && deleteMutation.variables === dotIndex}
                 />
               );
             })}
@@ -248,6 +249,7 @@ function DotCard({
   disabled,
   isBackingUp = false,
   isRestoring = false,
+  isDeleting = false,
 }: {
   dot: DotfileStatus;
   dotIndex: number;
@@ -258,6 +260,7 @@ function DotCard({
   disabled: boolean;
   isBackingUp?: boolean;
   isRestoring?: boolean;
+  isDeleting?: boolean;
 }) {
   const hasIssues = dot.missing_deps.length > 0 || dot.pending_setup.length > 0;
 
@@ -357,7 +360,7 @@ function DotCard({
         {/* Actions — visible on hover or while loading */}
         <div className={cn(
           "flex shrink-0 items-center gap-1 transition-opacity",
-          (isBackingUp || isRestoring) ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+          (isBackingUp || isRestoring || isDeleting) ? "opacity-100" : "opacity-0 group-hover:opacity-100",
         )}>
           <Button
             variant="ghost"
@@ -408,7 +411,9 @@ function DotCard({
                 title="Remove from config"
                 className="text-muted-foreground hover:text-destructive"
               >
-                <Trash2 className="size-3.5" />
+                {isDeleting
+                  ? <Loader2 className="size-3.5 animate-spin" />
+                  : <Trash2 className="size-3.5" />}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>

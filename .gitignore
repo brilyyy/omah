@@ -1,5 +1,6 @@
 /target
 /assets
+.DS_Store
 
 # Node / bun
 node_modules/
@@ -17,3 +18,4 @@ plan.md
 .claude/
 .rtk/
 graphify-out/
+.agents/

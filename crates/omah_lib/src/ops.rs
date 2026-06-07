@@ -43,17 +43,28 @@ pub struct FileChange {
 
 // ── Internal helpers ───────────────────────────────────────────────────────
 
+/// Files always excluded regardless of user config (OS metadata noise).
+const ALWAYS_EXCLUDE: &[&str] = &[".DS_Store"];
+
 fn expand_path(path: &str) -> Result<PathBuf> {
     path.expand_tilde()
         .map(|p| p.to_path_buf())
         .with_context(|| format!("Failed to expand path: {}", path))
 }
 
-/// Returns true if the entry's filename matches any glob pattern.
+fn always_excluded(name: &OsString) -> bool {
+    let s = name.to_string_lossy();
+    ALWAYS_EXCLUDE.iter().any(|e| *e == s.as_ref())
+}
+
+/// Returns true if the entry's filename matches any always-excluded name or glob pattern.
 fn is_excluded(path: &Path, excludes: &[String]) -> bool {
     let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
         return false;
     };
+    if ALWAYS_EXCLUDE.contains(&name) {
+        return true;
+    }
     excludes.iter().any(|pat| {
         glob::Pattern::new(pat)
             .map(|p| p.matches(name))
@@ -263,6 +274,7 @@ fn diff_trees(
                 for entry in fs::read_dir(source)? {
                     let entry = entry?;
                     let name = entry.file_name();
+                    if always_excluded(&name) { continue; }
                     let child = child_rel(rel, &name);
                     diff_trees(dot_name, &entry.path(), &vault.join(&name), &child, out)?;
                 }
@@ -279,6 +291,7 @@ fn diff_trees(
                 for entry in fs::read_dir(vault)? {
                     let entry = entry?;
                     let name = entry.file_name();
+                    if always_excluded(&name) { continue; }
                     let child = child_rel(rel, &name);
                     diff_trees(dot_name, &source.join(&name), &entry.path(), &child, out)?;
                 }
@@ -295,12 +308,14 @@ fn diff_trees(
                 let mut names: HashSet<OsString> = HashSet::new();
                 if source.is_dir() {
                     for e in fs::read_dir(source)? {
-                        names.insert(e?.file_name());
+                        let name = e?.file_name();
+                        if !always_excluded(&name) { names.insert(name); }
                     }
                 }
                 if vault.is_dir() {
                     for e in fs::read_dir(vault)? {
-                        names.insert(e?.file_name());
+                        let name = e?.file_name();
+                        if !always_excluded(&name) { names.insert(name); }
                     }
                 }
                 for name in names {
