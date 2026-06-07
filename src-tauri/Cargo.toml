@@ -23,6 +23,10 @@ serde.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true
 omah_core = { path = "../crates/omah_core" }
+omah_lib = { path = "../crates/omah_lib" }
+clap.workspace = true
+owo-colors.workspace = true
+expand-tilde = "0.6.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tokio = { version = "1", features = ["process", "io-util", "sync", "time"] }

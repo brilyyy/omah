@@ -2623,7 +2623,11 @@ name = "omah_desktop"
 version = "1.3.0"
 dependencies = [
  "anyhow",
+ "clap",
+ "expand-tilde",
  "omah_core",
+ "omah_lib",
+ "owo-colors",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
