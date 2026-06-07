@@ -22,9 +22,7 @@ export default defineConfig(async () => ({
     port: 1420,
     strictPort: true,
     host: host || false,
-    hmr: host
-      ? { protocol: "ws", host, port: 1421 }
-      : undefined,
+    hmr: host ? { protocol: "ws", host, port: 1421 } : undefined,
     watch: {
       ignored: ["**/src-tauri/**"],
     },
@@ -44,10 +42,7 @@ export default defineConfig(async () => ({
       output: {
         manualChunks: {
           // Router + data-fetching layer (React co-bundled here)
-          "vendor-router": [
-            "@tanstack/react-router",
-            "@tanstack/react-query",
-          ],
+          "vendor-router": ["@tanstack/react-router", "@tanstack/react-query"],
           // Tauri API surface — changes with Tauri upgrades, not app code
           "vendor-tauri": [
             "@tauri-apps/api",
