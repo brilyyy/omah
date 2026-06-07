@@ -42,43 +42,35 @@ pub fn save_toml_config(config: &OmahConfig, path: &Path) -> Result<()> {
         }
 
         // deps — inline string array: deps = ["zsh", "nvim"]
-        if let Some(deps) = &dot.deps {
-            if !deps.is_empty() {
-                let mut arr = Array::new();
-                for dep in deps {
-                    arr.push(dep.as_str());
-                }
-                tbl["deps"] = Item::Value(Value::Array(arr));
+        if let Some(deps) = &dot.deps && !deps.is_empty() {
+            let mut arr = Array::new();
+            for dep in deps {
+                arr.push(dep.as_str());
             }
+            tbl["deps"] = Item::Value(Value::Array(arr));
         }
 
         // setup — inline array of inline tables: setup = [{install="...", check="..."}]
-        if let Some(steps) = &dot.setup {
-            if !steps.is_empty() {
-                let mut arr = Array::new();
-                for step in steps {
-                    let mut inline = InlineTable::new();
-                    inline.insert("install", step.install.clone().into());
-                    if let Some(check) = &step.check {
-                        if !check.is_empty() {
-                            inline.insert("check", check.clone().into());
-                        }
-                    }
-                    arr.push(Value::InlineTable(inline));
+        if let Some(steps) = &dot.setup && !steps.is_empty() {
+            let mut arr = Array::new();
+            for step in steps {
+                let mut inline = InlineTable::new();
+                inline.insert("install", step.install.clone().into());
+                if let Some(check) = &step.check && !check.is_empty() {
+                    inline.insert("check", check.clone().into());
                 }
-                tbl["setup"] = Item::Value(Value::Array(arr));
+                arr.push(Value::InlineTable(inline));
             }
+            tbl["setup"] = Item::Value(Value::Array(arr));
         }
 
         // exclude — inline string array: exclude = ["*.log", ".git"]
-        if let Some(exclude) = &dot.exclude {
-            if !exclude.is_empty() {
-                let mut arr = Array::new();
-                for pat in exclude {
-                    arr.push(pat.as_str());
-                }
-                tbl["exclude"] = Item::Value(Value::Array(arr));
+        if let Some(exclude) = &dot.exclude && !exclude.is_empty() {
+            let mut arr = Array::new();
+            for pat in exclude {
+                arr.push(pat.as_str());
             }
+            tbl["exclude"] = Item::Value(Value::Array(arr));
         }
 
         dots_array.push(tbl);
