@@ -519,7 +519,7 @@ dependencies = [
 
 [[package]]
 name = "omah"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -535,7 +535,7 @@ dependencies = [
 
 [[package]]
 name = "omah_lib"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "expand-tilde",
@@ -551,7 +551,7 @@ dependencies = [
 
 [[package]]
 name = "omah_structs"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -559,7 +559,7 @@ dependencies = [
 
 [[package]]
 name = "omah_tui"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
  "anyhow",
  "crossterm",

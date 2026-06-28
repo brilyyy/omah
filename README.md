@@ -60,7 +60,11 @@
 **Install script** (macOS / Linux):
 
 ```sh
+# Quick install — downloads prebuilt binary
 curl -fsSL https://raw.githubusercontent.com/brilyyy/omah/master/scripts/install.sh | bash
+
+# Build from source instead (requires Rust toolchain)
+curl -fsSL https://raw.githubusercontent.com/brilyyy/omah/master/scripts/install.sh | bash -s -- --source
 ```
 
 **Prebuilt binaries** — grab the latest from [Releases](https://github.com/brilyyy/omah/releases):

@@ -5,6 +5,35 @@ REPO="brilyyy/omah"
 BIN="omah"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 
+# ── Parse flags ─────────────────────────────────────────────────────────
+BUILD_SOURCE=false
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --source) BUILD_SOURCE=true; shift ;;
+    --prefix=*) INSTALL_DIR="${1#*=}"; shift ;;
+    --prefix) INSTALL_DIR="$2"; shift 2 ;;
+    *) echo "Usage: $0 [--source] [--prefix <dir>]"; exit 1 ;;
+  esac
+done
+
+if [ "$BUILD_SOURCE" = true ]; then
+  # ── Build from source ────────────────────────────────────────────────
+  echo "→ Cloning $REPO…"
+  TMP="$(mktemp -d)"
+  git clone --depth 1 "https://github.com/$REPO.git" "$TMP"
+
+  echo "→ Building…"
+  (cd "$TMP" && cargo build --release --bin omah)
+
+  echo "→ Installing $BIN to $INSTALL_DIR…"
+  install -d "$INSTALL_DIR"
+  install -m 755 "$TMP/target/release/$BIN" "$INSTALL_DIR/$BIN"
+
+  rm -rf "$TMP"
+  echo "✓ $BIN installed at $INSTALL_DIR/$BIN (built from source)"
+  exit 0
+fi
+
 # ── Platform detection ──────────────────────────────────────────────────
 ARCH=""
 case "$(uname -s)-$(uname -m)" in
