@@ -23,6 +23,9 @@ fn pkg_to_bin(pkg: &str) -> &str {
 /// in rc files (e.g. nvm). Fast path: `which`. Slow path: interactive
 /// `$SHELL -i -c "command -v <name>"`, only runs when `which` misses.
 fn command_available(name: &str) -> bool {
+    if name.is_empty() {
+        return false;
+    }
     if which::which(name).is_ok() {
         return true;
     }
@@ -86,7 +89,7 @@ fn step_is_pending(step: &SetupStep) -> bool {
         Some(raw) => {
             let raw = raw.trim();
             if let Some(bin) = raw.strip_prefix("bin:") {
-                !command_available(bin.trim())
+                bin.trim().is_empty() || !command_available(bin.trim())
             } else if let Some(path) = raw.strip_prefix("file:") {
                 path.trim()
                     .expand_tilde()
@@ -273,8 +276,12 @@ mod tests {
 
     #[test]
     fn test_is_installed_mapped_pkg() {
-        // PKG_TO_BIN maps neovim→nvim — both should resolve
-        assert!(is_installed("neovim"));
+        // Test that PKG_TO_BIN mapping works (doesn't depend on env)
+        assert_eq!(pkg_to_bin("neovim"), "nvim");
+        assert_eq!(pkg_to_bin("ripgrep"), "rg");
+        assert_eq!(pkg_to_bin("fd-find"), "fd");
+        // Unmapped names pass through
+        assert_eq!(pkg_to_bin("nonexistent_12345"), "nonexistent_12345");
     }
 
     #[test]
