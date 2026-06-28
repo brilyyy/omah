@@ -8,4 +8,4 @@ pub mod migrate;
 pub mod remove;
 pub mod restore;
 pub mod status;
-pub mod tui;
+// pub mod tui; // disabled for now

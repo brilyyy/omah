@@ -210,7 +210,7 @@ symlink = true
     #[test]
     fn test_get_default_config_path_ends_with_filename() {
         let path = get_default_config_path().unwrap();
-        assert!(path.to_str().unwrap().ends_with("omah-config.toml"));
+        assert!(path.to_str().unwrap().ends_with("omah.toml"));
     }
 
     #[test]

@@ -129,6 +129,6 @@ fn main() -> anyhow::Result<()> {
         Commands::Remove { name } => commands::remove::run(&config_path, &name),
         Commands::Info { name } => commands::info::run(&config_path, name.as_deref()),
         Commands::Migrate => commands::migrate::run(&config_path),
-        Commands::Tui => commands::tui::run(&config_path),
+        // Commands::Tui => commands::tui::run(&config_path), // disabled for now
     }
 }

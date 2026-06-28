@@ -78,6 +78,5 @@ pub enum Commands {
     },
     /// Migrate legacy vault to new ID-based structure
     Migrate,
-    /// Launch the terminal user interface (interactive mode)
-    Tui,
+    // Tui, // disabled for now
 }
