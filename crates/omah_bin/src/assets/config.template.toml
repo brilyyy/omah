@@ -1,0 +1,71 @@
+# ── omah config ─────────────────────────────────────────────────────────
+# Schema: https://raw.githubusercontent.com/brilyyy/omah/main/docs/schemas/omah-config.schema.json
+
+# ── Vault (required) ────────────────────────────────────────────────────
+# Where your dotfiles are stored (backed up to and restored from).
+vault_path = "~/.config/omah/vault"
+
+# ── OS (optional) ───────────────────────────────────────────────────────
+# Force a target OS. "auto" detects at runtime (default).
+# Accepts: "auto" | "macos" | "linux"
+# os = "auto"
+
+# ── Package manager (optional) ──────────────────────────────────────────
+# Force a package manager for dep installation. "auto" detects from PATH.
+# Accepts: "auto" | "brew" | "apt-get" | "pacman" | "dnf" | "zypper"
+# pkg_manager = "auto"
+
+# ── Dotfiles ────────────────────────────────────────────────────────────
+# Each [[dots]] entry describes one file or directory to manage.
+# Only "name" and "source" are required — everything else is optional.
+
+# == Minimal example =====================================================
+#
+# [[dots]]
+# name = "Zsh"
+# source = "~/.zshrc"
+
+# == Full example (all options) ===========================================
+#
+# [[dots]]
+# name = "Neovim"
+# source = "~/.config/nvim"
+#
+#   # Replace source with a symlink to the vault after backup.
+#   # symlink = true
+#
+#   # Required binaries — omah checks these exist in PATH before restore.
+#   # deps = ["nvim", "git", "ripgrep"]
+#
+#   # Globs to skip when backing up or restoring directories.
+#   # exclude = ["*.log", ".git", "node_modules"]
+#
+#   # ── Setup steps (optional) ────────────────────────────────────────
+#   # Shell commands run after restore, in order.
+#   # Each step can include a `check` — the step is skipped when the check
+#   # passes and considered "pending" when it fails. Steps without a check
+#   # always run on every restore.
+#   #
+#   # setup = [
+#   #   # Binary check: skip if binary found in PATH
+#   #   { install = "brew install neovim", check = "bin:nvim" },
+#   #
+#   #   # File check: skip if file exists
+#   #   { install = "ln -sf ~/.config/nvim ~/.nvim", check = "file:~/.nvim" },
+#   #
+#   #   # Dir check: skip if directory exists
+#   #   { install = "mkdir -p ~/.local/share/nvim", check = "dir:~/.local/share/nvim" },
+#   #
+#   #   # App check (macOS): skip if .app bundle exists in /Applications
+#   #   { install = "brew install --cask neovim", check = "app:Neovim" },
+#   #
+#   #   # Command check: skip if shell command exits 0
+#   #   { install = "curl -fsSL https://example.com/install.sh | bash",
+#   #     check = "cmd:test -d ~/.local/share/nvim" },
+#   #
+#   #   # Output check: runs install command, skips if trimmed stdout matches
+#   #   { install = "python3 --version", check = "out:Python 3.12" },
+#   #
+#   #   # Always skip: permanently mark as done
+#   #   { install = "echo 'already configured'", check = "skip" },
+#   # ]

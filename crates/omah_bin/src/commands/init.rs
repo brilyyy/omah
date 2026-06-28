@@ -12,17 +12,7 @@ pub fn run(config_path: &Path) -> Result<()> {
     }
 
     if !config_path.is_file() {
-        let default_config = concat!(
-            "#:schema https://raw.githubusercontent.com/brilyyy/omah/main/docs/schemas/omah-config.schema.json\n",
-            "# Panggonan kanggo nyimpen backup (The Vault)\n",
-            "vault_path = \"~/.config/omah/vault\"\n",
-            "\n",
-            "# [[dots]]\n",
-            "# name = \"Example\"\n",
-            "# source = \"~/.zshrc\"\n",
-            "# symlink = false\n",
-        );
-        std::fs::write(config_path, default_config)
+        std::fs::write(config_path, include_str!("../assets/config.template.toml"))
             .with_context(|| format!("Failed to write default config: {}", config_path.display()))?;
     }
 

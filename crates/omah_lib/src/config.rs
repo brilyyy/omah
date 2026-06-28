@@ -124,8 +124,6 @@ pub(crate) fn init_at(config_dir: PathBuf) -> Result<()> {
 
     if !config_path.is_file() {
         let default_config = concat!(
-            "#:schema https://raw.githubusercontent.com/brilyyy/omah/main/docs/schemas/omah-config.schema.json\n",
-            "# Panggonan kanggo nyimpen backup (The Vault)\n",
             "vault_path = \"~/.config/omah/vault\"\n",
             "\n",
             "# [[dots]]\n",
