@@ -168,3 +168,433 @@ pub fn install_command(pm: &str, deps: &[String]) -> String {
         _ => format!("{pm} install {pkgs}"),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    fn dot(deps: Option<Vec<&str>>) -> DotfileConfig {
+        DotfileConfig {
+            name: "test".into(),
+            source: "/dev/null".into(),
+            symlink: None,
+            deps: deps.map(|d| d.into_iter().map(String::from).collect()),
+            setup: None,
+            exclude: None,
+        }
+    }
+
+    fn step(check: Option<&str>, install: &str) -> SetupStep {
+        SetupStep {
+            check: check.map(String::from),
+            install: install.into(),
+        }
+    }
+
+    // ── declared_deps ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_declared_deps_some() {
+        let d = dot(Some(vec!["nvim", "git"]));
+        assert_eq!(declared_deps(&d), &["nvim", "git"]);
+    }
+
+    #[test]
+    fn test_declared_deps_none() {
+        let d = dot(None);
+        assert!(declared_deps(&d).is_empty());
+    }
+
+    #[test]
+    fn test_declared_deps_empty_vec() {
+        let d = dot(Some(vec![]));
+        assert!(declared_deps(&d).is_empty());
+    }
+
+    // ── pkg_to_bin ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_pkg_to_bin_known() {
+        assert_eq!(pkg_to_bin("neovim"), "nvim");
+    }
+
+    #[test]
+    fn test_pkg_to_bin_case_insensitive() {
+        assert_eq!(pkg_to_bin("Neovim"), "nvim");
+        assert_eq!(pkg_to_bin("NEOVIM"), "nvim");
+    }
+
+    #[test]
+    fn test_pkg_to_bin_unknown_falls_back() {
+        assert_eq!(pkg_to_bin("xyzzy_nope_12345"), "xyzzy_nope_12345");
+    }
+
+    #[test]
+    fn test_pkg_to_bin_empty() {
+        assert_eq!(pkg_to_bin(""), "");
+    }
+
+    // ── command_available ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_command_available_sh() {
+        assert!(command_available("sh"));
+    }
+
+    #[test]
+    fn test_command_available_echo() {
+        assert!(command_available("echo"));
+    }
+
+    #[test]
+    fn test_command_available_nonexistent() {
+        assert!(!command_available("xyzzy_nope_12345_does_not_exist"));
+    }
+
+    #[test]
+    fn test_command_available_empty() {
+        assert!(!command_available(""));
+    }
+
+    // ── is_installed ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_is_installed_known_binary() {
+        assert!(is_installed("sh"));
+        assert!(is_installed("echo"));
+    }
+
+    #[test]
+    fn test_is_installed_nonexistent() {
+        assert!(!is_installed("xyzzy_nope_12345_does_not_exist"));
+    }
+
+    #[test]
+    fn test_is_installed_mapped_pkg() {
+        // PKG_TO_BIN maps neovim→nvim — both should resolve
+        assert!(is_installed("neovim"));
+    }
+
+    #[test]
+    fn test_is_installed_empty() {
+        assert!(!is_installed(""));
+    }
+
+    // ── missing_deps ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_missing_deps_none_when_all_installed() {
+        let d = dot(Some(vec!["sh", "echo"]));
+        assert!(missing_deps(&d).is_empty());
+    }
+
+    #[test]
+    fn test_missing_deps_filters_missing() {
+        let d = dot(Some(vec!["sh", "xyzzy_nope_12345_does_not_exist"]));
+        let missing = missing_deps(&d);
+        assert_eq!(missing.len(), 1);
+        assert_eq!(missing[0], "xyzzy_nope_12345_does_not_exist");
+    }
+
+    #[test]
+    fn test_missing_deps_none_when_no_declared() {
+        let d = dot(None);
+        assert!(missing_deps(&d).is_empty());
+    }
+
+    // ── resolve_pkg_manager ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_resolve_pkg_manager_explicit_brew() {
+        assert_eq!(resolve_pkg_manager(Some("brew")).unwrap(), "brew");
+    }
+
+    #[test]
+    fn test_resolve_pkg_manager_explicit_custom() {
+        assert_eq!(resolve_pkg_manager(Some("nix-env")).unwrap(), "nix-env");
+    }
+
+    #[test]
+    fn test_resolve_pkg_manager_none_delegates_to_detect() {
+        // Non-deterministic — depends on CI/dev environment.
+        // Just verify it returns Option<String> without panicking.
+        let result = resolve_pkg_manager(None);
+        let _: Option<String> = result;
+    }
+
+    #[test]
+    fn test_resolve_pkg_manager_auto_delegates_to_detect() {
+        let result = resolve_pkg_manager(Some("auto"));
+        let _: Option<String> = result;
+    }
+
+    #[test]
+    fn test_resolve_pkg_manager_empty_delegates_to_detect() {
+        let result = resolve_pkg_manager(Some(""));
+        let _: Option<String> = result;
+    }
+
+    // ── step_is_pending: None / "" ───────────────────────────────────────────
+
+    #[test]
+    fn test_step_pending_none() {
+        assert!(step_is_pending(&step(None, "")));
+    }
+
+    #[test]
+    fn test_step_pending_empty_string() {
+        assert!(step_is_pending(&step(Some(""), "")));
+    }
+
+    // ── step_is_pending: skip ────────────────────────────────────────────────
+
+    #[test]
+    fn test_step_pending_skip() {
+        assert!(!step_is_pending(&step(Some("skip"), "")));
+    }
+
+    #[test]
+    fn test_step_pending_skip_with_reason() {
+        assert!(!step_is_pending(&step(Some("skip:already have it"), "")));
+    }
+
+    // ── step_is_pending: bin: ────────────────────────────────────────────────
+
+    #[test]
+    fn test_step_pending_bin_exists() {
+        assert!(!step_is_pending(&step(Some("bin:sh"), "")));
+    }
+
+    #[test]
+    fn test_step_pending_bin_missing() {
+        assert!(step_is_pending(&step(Some("bin:xyzzy_nope_12345"), "")));
+    }
+
+    #[test]
+    fn test_step_pending_bin_trimmed() {
+        assert!(!step_is_pending(&step(Some("bin:  sh  "), "")));
+    }
+
+    #[test]
+    fn test_step_pending_bin_empty() {
+        assert!(step_is_pending(&step(Some("bin:"), "")));
+    }
+
+    // ── step_is_pending: file: ───────────────────────────────────────────────
+
+    #[test]
+    fn test_step_pending_file_exists() {
+        let dir = tempdir().unwrap();
+        let f = dir.path().join("test.txt");
+        std::fs::write(&f, "content").unwrap();
+        assert!(!step_is_pending(&step(Some(&format!("file:{}", f.display())), "")));
+    }
+
+    #[test]
+    fn test_step_pending_file_missing() {
+        assert!(step_is_pending(&step(Some("file:/xyzzy_nope_12345_file"), "")));
+    }
+
+    #[test]
+    fn test_step_pending_file_empty_path() {
+        assert!(step_is_pending(&step(Some("file:"), "")));
+    }
+
+    // ── step_is_pending: dir: ────────────────────────────────────────────────
+
+    #[test]
+    fn test_step_pending_dir_exists_via_tempdir() {
+        let dir = tempdir().unwrap();
+        assert!(!step_is_pending(&step(Some(&format!("dir:{}", dir.path().display())), "")));
+    }
+
+    #[test]
+    fn test_step_pending_dir_root() {
+        assert!(!step_is_pending(&step(Some("dir:/"), "")));
+    }
+
+    #[test]
+    fn test_step_pending_dir_missing() {
+        assert!(step_is_pending(&step(Some("dir:/xyzzy_nope_12345_dir"), "")));
+    }
+
+    #[test]
+    fn test_step_pending_dir_empty() {
+        assert!(step_is_pending(&step(Some("dir:"), "")));
+    }
+
+    // ── step_is_pending: cmd: ────────────────────────────────────────────────
+
+    #[test]
+    fn test_step_pending_cmd_success() {
+        assert!(!step_is_pending(&step(Some("cmd:true"), "")));
+    }
+
+    #[test]
+    fn test_step_pending_cmd_failure() {
+        assert!(step_is_pending(&step(Some("cmd:false"), "")));
+    }
+
+    #[test]
+    fn test_step_pending_cmd_echo_success() {
+        assert!(!step_is_pending(&step(Some("cmd:echo hi"), "")));
+    }
+
+    // ── step_is_pending: out: ────────────────────────────────────────────────
+
+    #[test]
+    fn test_step_pending_out_matches() {
+        assert!(!step_is_pending(&step(Some("out:ok"), "echo ok")));
+    }
+
+    #[test]
+    fn test_step_pending_out_mismatch() {
+        assert!(step_is_pending(&step(Some("out:ok"), "echo fail")));
+    }
+
+    #[test]
+    fn test_step_pending_out_empty_expected() {
+        assert!(!step_is_pending(&step(Some("out:"), "true")));
+    }
+
+    // ── step_is_pending: bare binary (backward compat) ───────────────────────
+
+    #[test]
+    fn test_step_pending_bare_binary_exists() {
+        assert!(!step_is_pending(&step(Some("sh"), "")));
+    }
+
+    #[test]
+    fn test_step_pending_bare_binary_missing() {
+        assert!(step_is_pending(&step(Some("xyzzy_nope_12345"), "")));
+    }
+
+    // ── step_is_pending: bare path (backward compat) ─────────────────────────
+
+    #[test]
+    fn test_step_pending_bare_path_root() {
+        assert!(!step_is_pending(&step(Some("/"), "")));
+    }
+
+    #[test]
+    fn test_step_pending_bare_path_tmp() {
+        assert!(!step_is_pending(&step(Some("/tmp"), "")));
+    }
+
+    #[test]
+    fn test_step_pending_bare_path_missing() {
+        assert!(step_is_pending(&step(Some("/xyzzy_nope_12345_path"), "")));
+    }
+
+    #[test]
+    fn test_step_pending_bare_path_home_tilde() {
+        assert!(!step_is_pending(&step(Some("~"), "")));
+    }
+
+    // ── install_command ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_install_command_brew() {
+        assert_eq!(install_command("brew", &["nvim".into()]), "brew install nvim");
+    }
+
+    #[test]
+    fn test_install_command_apt_get() {
+        assert_eq!(
+            install_command("apt-get", &["neovim".into()]),
+            "sudo apt-get install -y neovim"
+        );
+    }
+
+    #[test]
+    fn test_install_command_pacman() {
+        assert_eq!(
+            install_command("pacman", &["neovim".into()]),
+            "sudo pacman -S --noconfirm neovim"
+        );
+    }
+
+    #[test]
+    fn test_install_command_dnf() {
+        assert_eq!(
+            install_command("dnf", &["neovim".into()]),
+            "sudo dnf install -y neovim"
+        );
+    }
+
+    #[test]
+    fn test_install_command_zypper() {
+        assert_eq!(
+            install_command("zypper", &["neovim".into()]),
+            "sudo zypper install -y neovim"
+        );
+    }
+
+    #[test]
+    fn test_install_command_fallback_unknown() {
+        assert_eq!(
+            install_command("nix-env", &["neovim".into()]),
+            "nix-env install neovim"
+        );
+    }
+
+    #[test]
+    fn test_install_command_multiple_deps() {
+        assert_eq!(
+            install_command("brew", &["nvim".into(), "git".into(), "zsh".into()]),
+            "brew install nvim git zsh"
+        );
+    }
+
+    #[test]
+    fn test_install_command_empty_deps() {
+        let result = install_command("brew", &[]);
+        assert_eq!(result, "brew install ");
+    }
+
+    // ── pending_setup_steps ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_pending_setup_steps_mixed() {
+        let dot = DotfileConfig {
+            name: "test".into(),
+            source: "/dev/null".into(),
+            symlink: None,
+            deps: None,
+            setup: Some(vec![
+                step(Some("skip"), ""),
+                step(Some("bin:sh"), ""),
+                step(Some("bin:xyzzy_nope_12345"), ""),
+                step(Some("bin:echo"), ""),
+            ]),
+            exclude: None,
+        };
+        let pending = pending_setup_steps(&dot);
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].check.as_deref(), Some("bin:xyzzy_nope_12345"));
+    }
+
+    #[test]
+    fn test_pending_setup_steps_all_done() {
+        let dot = DotfileConfig {
+            name: "test".into(),
+            source: "/dev/null".into(),
+            symlink: None,
+            deps: None,
+            setup: Some(vec![
+                step(Some("skip"), ""),
+                step(Some("bin:sh"), ""),
+                step(Some("bin:echo"), ""),
+            ]),
+            exclude: None,
+        };
+        assert!(pending_setup_steps(&dot).is_empty());
+    }
+
+    #[test]
+    fn test_pending_setup_steps_no_setup() {
+        let d = dot(None);
+        assert!(pending_setup_steps(&d).is_empty());
+    }
+}

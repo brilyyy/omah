@@ -4,9 +4,14 @@ use anyhow::Result;
 use omah_lib::{config::load_toml_config, ops::{diff, ChangeKind}};
 use owo_colors::OwoColorize;
 
-pub fn run(config_path: &Path) -> Result<()> {
+pub fn run(config_path: &Path, json: bool) -> Result<()> {
     let config = load_toml_config(config_path)?;
     let changes = diff(&config)?;
+
+    if json {
+        println!("{}", serde_json::to_string_pretty(&changes)?);
+        return Ok(());
+    }
 
     if changes.is_empty() {
         println!("{}", "✓ All dotfiles are in sync with the vault.".green());

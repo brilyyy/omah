@@ -33,11 +33,23 @@ pub enum Commands {
         name: Option<String>,
     },
     /// Show sync status of all dotfiles
-    Status,
+    Status {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
     /// List all configured dotfiles
-    List,
+    List {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
     /// Show what has changed between source and vault
-    Diff,
+    Diff {
+        /// Output as JSON
+        #[arg(long)]
+        json: bool,
+    },
     /// Add a dotfile entry to the config
     Add {
         /// Display name (used as vault folder)
@@ -52,5 +64,10 @@ pub enum Commands {
     Remove {
         /// Name of the dotfile to remove
         name: String,
+    },
+    /// Show detailed info about a dotfile
+    Info {
+        /// Dotfile name (omit to show all)
+        name: Option<String>,
     },
 }

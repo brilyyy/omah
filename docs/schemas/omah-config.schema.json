@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/brilyyy/omah/main/docs/schemas/omah-config.schema.json",
+  "title": "omah config",
+  "description": "Configuration schema for omah dotfile manager",
+  "type": "object",
+  "properties": {
+    "vault_path": {
+      "type": "string",
+      "description": "Path to the vault directory where dotfiles are stored (supports ~ expansion)"
+    },
+    "os": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "macos",
+        "linux"
+      ],
+      "default": "auto",
+      "description": "Target operating system. \"auto\" detects at runtime."
+    },
+    "pkg_manager": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "brew",
+        "apt-get",
+        "pacman",
+        "dnf",
+        "zypper"
+      ],
+      "default": "auto",
+      "description": "Package manager used when installing dependencies."
+    },
+    "dots": {
+      "type": "array",
+      "description": "List of dotfiles to manage",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Display name for the dotfile (used as vault subfolder)"
+          },
+          "source": {
+            "type": "string",
+            "description": "Path to the source file or directory on your machine (supports ~ expansion)"
+          },
+          "symlink": {
+            "type": "boolean",
+            "default": false,
+            "description": "Replace source with a symlink to the vault entry after backup"
+          },
+          "deps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Required binaries — restore checks these before proceeding"
+          },
+          "setup": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "install": {
+                  "type": "string",
+                  "description": "Shell command to run when the check is not met"
+                },
+                "check": {
+                  "type": "string",
+                  "description": "Condition that marks the step as done. Supports: bin:<name>, file:<path>, dir:<path>, app:<name>, cmd:<shell>, out:<text>, skip"
+                }
+              },
+              "required": [
+                "install"
+              ]
+            },
+            "description": "Setup steps to run after restore (e.g. install packages, create dirs)"
+          },
+          "exclude": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Glob patterns to skip when backing up a directory (e.g. \"*.log\", \".git\")"
+          }
+        },
+        "required": [
+          "name",
+          "source"
+        ]
+      }
+    }
+  },
+  "required": [
+    "vault_path"
+  ]
+}

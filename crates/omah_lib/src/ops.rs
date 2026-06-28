@@ -5,7 +5,9 @@ use std::{
     collections::HashSet,
     ffi::OsString,
     fs,
+    io::{self, IsTerminal, Write},
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 #[derive(serde::Serialize)]
@@ -72,12 +74,44 @@ fn is_excluded(path: &Path, excludes: &[String]) -> bool {
     })
 }
 
-fn copy_recursive(src: &Path, dst: &Path, excludes: &[String]) -> Result<()> {
+fn count_files(path: &Path, excludes: &[String]) -> u64 {
+    if path.is_file() {
+        return 1;
+    }
+    if path.is_dir() {
+        let mut count = 0;
+        if let Ok(entries) = fs::read_dir(path) {
+            for entry in entries.flatten() {
+                if is_excluded(&entry.path(), excludes) {
+                    continue;
+                }
+                count += count_files(&entry.path(), excludes);
+            }
+        }
+        return count;
+    }
+    0
+}
+
+fn copy_recursive(
+    src: &Path,
+    dst: &Path,
+    excludes: &[String],
+    progress: Option<(&AtomicU64, u64)>,
+) -> Result<()> {
     if src.is_file() {
         if let Some(parent) = dst.parent() {
             fs::create_dir_all(parent)?;
         }
         fs::copy(src, dst)?;
+        if let Some((counter, total)) = progress {
+            let done = counter.fetch_add(1, Ordering::Relaxed) + 1;
+            if io::stderr().is_terminal() {
+                let pct = (done as f64 / total as f64) * 100.0;
+                eprint!("\r  {done}/{total} files ({pct:.0}%)");
+                io::stderr().flush().ok();
+            }
+        }
     } else if src.is_dir() {
         fs::create_dir_all(dst)?;
         for entry in fs::read_dir(src)? {
@@ -85,7 +119,12 @@ fn copy_recursive(src: &Path, dst: &Path, excludes: &[String]) -> Result<()> {
             if is_excluded(&entry.path(), excludes) {
                 continue;
             }
-            copy_recursive(&entry.path(), &dst.join(entry.file_name()), excludes)?;
+            copy_recursive(
+                &entry.path(),
+                &dst.join(entry.file_name()),
+                excludes,
+                progress,
+            )?;
         }
     } else {
         anyhow::bail!("Source path does not exist: {}", src.display());
@@ -124,9 +163,21 @@ pub fn backup(config: &OmahConfig) -> Result<()> {
             && fs::read_link(&source).map(|t| t == dest).unwrap_or(false);
 
         if !already_symlinked_to_dest {
-            copy_recursive(&source, &dest, excludes).with_context(|| {
-                format!("Failed to backup '{}' from {}", dot.name, source.display())
-            })?;
+            let total = count_files(&source, excludes);
+            let show_progress = total > 5 && io::stderr().is_terminal();
+            if show_progress {
+                eprint!("  {}: ", dot.name);
+            }
+            let counter = AtomicU64::new(0);
+            let progress = show_progress.then_some((&counter, total));
+
+            copy_recursive(&source, &dest, excludes, progress).with_context(
+                || format!("Failed to backup '{}' from {}", dot.name, source.display()),
+            )?;
+
+            if show_progress {
+                eprintln!();
+            }
 
             if dot.symlink.unwrap_or(false) {
                 remove_path(&source)
@@ -182,9 +233,25 @@ pub fn restore(config: &OmahConfig) -> Result<()> {
                     .with_context(|| format!("Failed to create symlink for '{}'", dot.name))
             })()
         } else {
-            copy_recursive(&vault_entry, &source, &[]).with_context(|| {
-                format!("Failed to restore '{}' to {}", dot.name, source.display())
-            })
+            let excludes: &[String] = &[];
+            let total = count_files(&vault_entry, excludes);
+            let show_progress = total > 5 && io::stderr().is_terminal();
+            if show_progress {
+                eprint!("  {}: ", dot.name);
+            }
+            let counter = AtomicU64::new(0);
+            let progress = show_progress.then_some((&counter, total));
+
+            let res = copy_recursive(&vault_entry, &source, excludes, progress)
+                .with_context(|| {
+                    format!("Failed to restore '{}' to {}", dot.name, source.display())
+                });
+
+            if show_progress {
+                eprintln!();
+            }
+
+            res
         };
 
         if let Err(e) = result {

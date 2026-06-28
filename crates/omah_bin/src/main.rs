@@ -1,6 +1,8 @@
 mod cli;
 mod commands;
 
+use std::path::PathBuf;
+
 use clap::Parser;
 use cli::{Cli, Commands};
 use owo_colors::OwoColorize;
@@ -54,6 +56,42 @@ fn print_banner() {
     println!();
 }
 
+fn omah_config_from_env() -> Option<PathBuf> {
+    // .env file in CWD (dev convenience)
+    if let Ok(content) = std::fs::read_to_string(".env") {
+        for line in content.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            if let Some(value) = line.strip_prefix("OMAH_CONFIG=") {
+                let value = value.trim().trim_matches('"').trim_matches('\'');
+                if !value.is_empty() {
+                    return Some(PathBuf::from(value));
+                }
+            }
+        }
+    }
+    // OMAH_CONFIG env var
+    if let Ok(val) = std::env::var("OMAH_CONFIG") {
+        let val = val.trim().to_string();
+        if !val.is_empty() {
+            return Some(PathBuf::from(val));
+        }
+    }
+    None
+}
+
+fn resolve_config_path(cli_config: Option<PathBuf>) -> anyhow::Result<PathBuf> {
+    if let Some(p) = cli_config {
+        return Ok(p);
+    }
+    if let Some(p) = omah_config_from_env() {
+        return Ok(p);
+    }
+    omah_lib::config::get_default_config_path()
+}
+
 fn main() -> anyhow::Result<()> {
     use clap::CommandFactory;
 
@@ -72,23 +110,21 @@ fn main() -> anyhow::Result<()> {
         print_banner();
     }
 
-    let config_path = match cli.config {
-        Some(p) => p,
-        None => omah_lib::config::get_default_config_path()?,
-    };
+    let config_path = resolve_config_path(cli.config)?;
 
     match cli.command {
-        Commands::Init => commands::init::run(),
+        Commands::Init => commands::init::run(&config_path),
         Commands::Backup { no_exclude, name } => {
             commands::backup::run(&config_path, no_exclude, name.as_deref())
         }
         Commands::Restore { name } => commands::restore::run(&config_path, name.as_deref()),
-        Commands::Status => commands::status::run(&config_path),
-        Commands::List => commands::list::run(&config_path),
-        Commands::Diff => commands::diff::run(&config_path),
+        Commands::Status { json } => commands::status::run(&config_path, json),
+        Commands::List { json } => commands::list::run(&config_path, json),
+        Commands::Diff { json } => commands::diff::run(&config_path, json),
         Commands::Add { name, source, symlink } => {
             commands::add::run(&config_path, name, source, symlink)
         }
         Commands::Remove { name } => commands::remove::run(&config_path, &name),
+        Commands::Info { name } => commands::info::run(&config_path, name.as_deref()),
     }
 }

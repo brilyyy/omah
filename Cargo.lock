@@ -284,14 +284,7 @@ dependencies = [
  "expand-tilde",
  "omah_lib",
  "owo-colors",
-]
-
-[[package]]
-name = "omah_core"
-version = "1.2.0"
-dependencies = [
- "omah_lib",
- "omah_structs",
+ "serde_json",
 ]
 
 [[package]]
