@@ -14,9 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ── Desktop app + CLI (unified binary) ──────────────────────────────────────
-
-  build-desktop:
+  build-cli:
     name: Build ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
@@ -25,36 +23,25 @@ jobs:
         include:
           - name: macos-aarch64
             os: macos-latest
-
+            target: aarch64-apple-darwin
+          - name: macos-x86_64
+            os: macos-13
+            target: x86_64-apple-darwin
           - name: linux-x86_64
             os: ubuntu-22.04
+            target: x86_64-unknown-linux-musl
+          - name: linux-aarch64
+            os: ubuntu-22.04
+            target: aarch64-unknown-linux-musl
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Verify tag is on master
-        run: |
-          git fetch origin master
-          git merge-base --is-ancestor ${{ github.sha }} origin/master || \
-            (echo "❌ Tag ${{ github.ref_name }} is not on master — merge first" && exit 1)
-
-      - uses: oven-sh/setup-bun@v2
-
       - uses: dtolnay/rust-toolchain@stable
-
-      - name: Install Linux system dependencies
-        if: matrix.os == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libssl-dev \
-            libgtk-3-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            patchelf
+        with:
+          targets: ${{ matrix.target }}
 
       - uses: actions/cache@v4
         with:
@@ -63,84 +50,40 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-          key: ${{ runner.os }}-cargo-desktop-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-cli-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-desktop-
+            ${{ runner.os }}-cargo-cli-
 
-      - uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lockb') }}
-          restore-keys: |
-            ${{ runner.os }}-bun-
-
-      - name: Install frontend dependencies
-        run: bun install
-
-      - name: Build
-        run: bun run tauri build
-
-      - name: Package CLI tarball (macOS)
-        if: startsWith(matrix.os, 'macos')
-        id: pkg_cli_macos
+      - name: Install Linux cross-compile deps
+        if: matrix.target == 'aarch64-unknown-linux-musl'
         run: |
-          ARCH=$(uname -m)
-          [ "$ARCH" = "arm64" ] && TRIPLE="aarch64-apple-darwin" || TRIPLE="x86_64-apple-darwin"
-          ARCHIVE="omah-${{ github.ref_name }}-${TRIPLE}.tar.gz"
-          strip target/release/omah
-          tar -czf "${ARCHIVE}" -C target/release omah
-          echo "archive=${ARCHIVE}" >> $GITHUB_OUTPUT
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
 
-      - name: Package CLI tarball (Linux)
-        if: matrix.os == 'ubuntu-22.04'
-        id: pkg_cli_linux
+      - name: Build CLI
         run: |
-          ARCHIVE="omah-${{ github.ref_name }}-x86_64-unknown-linux-gnu.tar.gz"
-          strip target/release/omah
-          tar -czf "${ARCHIVE}" -C target/release omah
+          cargo build --bin omah --release --locked --target ${{ matrix.target }}
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER: aarch64-linux-gnu-gcc
+
+      - name: Package tarball
+        run: |
+          ARCHIVE="omah-${{ github.ref_name }}-${{ matrix.target }}.tar.gz"
+          strip target/${{ matrix.target }}/release/omah 2>/dev/null || true
+          tar -czf "${ARCHIVE}" -C target/${{ matrix.target }}/release omah
           echo "archive=${ARCHIVE}" >> $GITHUB_OUTPUT
+        id: pkg
 
-      - name: Upload macOS dmg
-        if: startsWith(matrix.os, 'macos')
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-${{ matrix.name }}
-          path: target/release/bundle/dmg/*.dmg
-          retention-days: 1
-          if-no-files-found: error
-
-      - name: Upload macOS CLI tarball
-        if: startsWith(matrix.os, 'macos')
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: cli-${{ matrix.name }}
-          path: ${{ steps.pkg_cli_macos.outputs.archive }}
+          path: ${{ steps.pkg.outputs.archive }}
           retention-days: 1
           if-no-files-found: error
-
-      - name: Upload Linux AppImage
-        if: matrix.os == 'ubuntu-22.04'
-        uses: actions/upload-artifact@v4
-        with:
-          name: desktop-${{ matrix.name }}
-          path: target/release/bundle/appimage/*.AppImage
-          retention-days: 1
-          if-no-files-found: error
-
-      - name: Upload Linux CLI tarball
-        if: matrix.os == 'ubuntu-22.04'
-        uses: actions/upload-artifact@v4
-        with:
-          name: cli-${{ matrix.name }}
-          path: ${{ steps.pkg_cli_linux.outputs.archive }}
-          retention-days: 1
-          if-no-files-found: error
-
-  # ── GitHub Release ────────────────────────────────────────────────────────────
 
   release:
     name: Create Release
-    needs: [build-desktop]
+    needs: [build-cli]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -152,8 +95,7 @@ jobs:
           path: artifacts/
           merge-multiple: true
 
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: "omah ${{ github.ref_name }}"

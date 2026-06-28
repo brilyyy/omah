@@ -33,4 +33,7 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Run tests
-        run: cargo test --workspace --exclude omah_desktop --locked
+        run: cargo test --workspace --locked
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings

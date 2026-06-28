@@ -1,16 +1,5 @@
 /target
-/assets
 .DS_Store
-
-# Node / bun
-node_modules/
-bun.lock
-
-# Frontend build output
-dist/
-
-# Tauri generated schemas (regenerated on build)
-src-tauri/gen/
 
 plan.md
 
