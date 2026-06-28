@@ -37,11 +37,11 @@ fi
 # -- Platform detection ---------------------------------------------------
 ARCH=""
 case "$(uname -s)-$(uname -m)" in
-  Darwin-arm64)  ARCH="macos-aarch64"  ;;
-  Darwin-x86_64) ARCH="macos-x86_64"   ;;
-  Linux-x86_64)  ARCH="linux-x86_64"   ;;
+  Darwin-arm64)  ARCH="aarch64-apple-darwin"  ;;
+  Linux-x86_64)  ARCH="x86_64-unknown-linux-musl"   ;;
+  Linux-aarch64) ARCH="aarch64-unknown-linux-musl"   ;;
   *)
-    echo "Unsupported platform: $(uname -s)-$(uname -m)"
+    echo "Unsupported platform: $(uname -s)-$(uname -m). Try: curl ... | bash -s -- --source"
     exit 1
     ;;
 esac
@@ -58,7 +58,7 @@ fi
 echo "  Latest: ${TAG}"
 
 # -- Download & extract ---------------------------------------------------
-TARBALL="${BIN}-${TAG#v}-${ARCH}.tar.gz"
+TARBALL="${BIN}-${TAG}-${ARCH}.tar.gz"
 URL="https://github.com/${REPO}/releases/download/${TAG}/${TARBALL}"
 TMP="$(mktemp -d)"
 
