@@ -974,7 +974,7 @@ mod tests {
         let config_dir = tempdir().unwrap();
         let config_path = config_dir.path().join("config.toml");
 
-        let mut dot = DotfileConfig {
+        let dot = DotfileConfig {
             name: "Zsh".into(),
             source: "/home/.zshrc".into(),
             id: Some("abc12345".into()),
