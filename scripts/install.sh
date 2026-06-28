@@ -3,7 +3,7 @@ set -euo pipefail
 
 REPO="brilyyy/omah"
 BIN="omah"
-INSTALL_DIR="${INSTALL_DIR:-~/.local/bin}"
+INSTALL_DIR="${INSTALL_DIR:-${HOME}/.local/bin}"
 
 # -- Parse flags ---------------------------------------------------------
 BUILD_SOURCE=false
