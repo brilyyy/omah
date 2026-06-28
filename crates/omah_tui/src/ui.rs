@@ -159,6 +159,7 @@ fn draw_help(frame: &mut Frame, area: Rect, app: &App) {
 fn draw_modal_overlay(frame: &mut Frame, area: Rect, modal: &ModalState, app: &App) {
     let modal_title: &str;
     let height_pct: u16;
+    #[allow(clippy::type_complexity)]
     let content_fn: Box<dyn FnOnce(&mut Frame, Rect)>;
 
     match modal {
@@ -234,7 +235,7 @@ fn draw_modal_overlay(frame: &mut Frame, area: Rect, modal: &ModalState, app: &A
 fn draw_form(frame: &mut Frame, area: Rect, fields: &[FormField], focused: usize, error: &Option<String>) {
     let inner_area = area;
     let mut constraints = Vec::new();
-    for (_i, field) in fields.iter().enumerate() {
+    for field in fields.iter() {
         match field {
             FormField::Text { .. } | FormField::Toggle { .. } => {
                 constraints.push(Constraint::Length(1));
@@ -283,14 +284,14 @@ fn draw_form(frame: &mut Frame, area: Rect, fields: &[FormField], focused: usize
     }
 
     // Error line
-    if let Some(err) = error {
-        if y < chunks.len() {
-            frame.render_widget(
-                Paragraph::new(Line::from(Span::styled(format!(" ✗ {err}"), Style::new().fg(theme::ERROR)))),
-                chunks[y],
-            );
-            y += 1;
-        }
+    if let Some(err) = error
+        && y < chunks.len()
+    {
+        frame.render_widget(
+            Paragraph::new(Line::from(Span::styled(format!(" ✗ {err}"), Style::new().fg(theme::ERROR)))),
+            chunks[y],
+        );
+        y += 1;
     }
 
     // Hint line

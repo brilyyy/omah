@@ -39,10 +39,10 @@ pub fn parse_check(raw: &str) -> (String, String) {
         return ("out".into(), v.to_string());
     }
     for &(prefix, _, _) in CHECK_TYPES {
-        if prefix != "none" && prefix != "skip" && prefix != "out" {
-            if let Some(v) = raw.strip_prefix(&format!("{prefix}:")) {
-                return (prefix.into(), v.to_string());
-            }
+        if prefix != "none" && prefix != "skip" && prefix != "out"
+            && let Some(v) = raw.strip_prefix(&format!("{prefix}:"))
+        {
+            return (prefix.into(), v.to_string());
         }
     }
     // Backward-compat: bare path → file, bare name → bin
@@ -238,17 +238,12 @@ impl SettingsForm {
 
 // ── Step execution state ─────────────────────────────────────────────────
 
+#[derive(Default)]
 pub struct StepExecState {
     pub running: bool,
     pub done: bool,
     pub success: bool,
     pub output: Vec<String>,
-}
-
-impl Default for StepExecState {
-    fn default() -> Self {
-        Self { running: false, done: false, success: false, output: vec![] }
-    }
 }
 
 // ── App state ────────────────────────────────────────────────────────────
@@ -468,16 +463,16 @@ impl App {
             }
         }
 
-        if !output_lines.is_empty() {
-            if let Some((_, ref mut state)) = self.step_exec {
-                state.output.extend(output_lines);
-                if done {
-                    state.running = false;
-                    state.done = true;
-                    state.success = state.output.last().map(|l| l.starts_with('✓')).unwrap_or(false);
-                    self.setup_rx = None;
-                    self.load_status();
-                }
+        if !output_lines.is_empty()
+            && let Some((_, ref mut state)) = self.step_exec
+        {
+            state.output.extend(output_lines);
+            if done {
+                state.running = false;
+                state.done = true;
+                state.success = state.output.last().map(|l| l.starts_with('✓')).unwrap_or(false);
+                self.setup_rx = None;
+                self.load_status();
             }
         }
     }
@@ -543,7 +538,7 @@ impl App {
     }
 
     pub fn open_edit_form(&mut self, idx: usize) {
-        let Some(ref dot) = self.config.as_ref().and_then(|c| c.dots.get(idx)) else {
+        let Some(dot) = self.config.as_ref().and_then(|c| c.dots.get(idx)) else {
             return;
         };
         let name = dot.name.clone();
@@ -615,7 +610,7 @@ impl App {
     }
 
     pub fn open_dep_flow(&mut self, idx: usize) {
-        let Some(ref dot) = self.config.as_ref().and_then(|c| c.dots.get(idx)) else {
+        let Some(dot) = self.config.as_ref().and_then(|c| c.dots.get(idx)) else {
             return;
         };
         let ws = DepWorkspace::new(dot);
@@ -748,24 +743,23 @@ impl App {
                     // Install missing deps for expanded dot
                     if let Some(exp_idx) = self.detail_expanded {
                         let config = self.config.clone();
-                        if let Some(ref cfg) = config {
-                            if let Some(dot) = cfg.dots.get(exp_idx) {
-                                if let Some(ref deps) = dot.deps {
-                                    let missing: Vec<String> = deps
-                                        .iter()
-                                        .filter(|d| !deps::is_installed(d))
-                                        .cloned()
-                                        .collect();
-                                    if !missing.is_empty() {
-                                        self.add_log(
-                                            format!("Installing {} missing dep(s)…", missing.len()),
-                                            LogKind::Info,
-                                        );
-                                        let mut dot_cfg = cfg.clone();
-                                        dot_cfg.dots.retain(|d| d.name == dot.name);
-                                        self.ops_handle = Some(crate::ops::start_restore(dot_cfg, false));
-                                    }
-                                }
+                        if let Some(ref cfg) = config
+                            && let Some(dot) = cfg.dots.get(exp_idx)
+                            && let Some(ref deps) = dot.deps
+                        {
+                            let missing: Vec<String> = deps
+                                .iter()
+                                .filter(|d| !deps::is_installed(d))
+                                .cloned()
+                                .collect();
+                            if !missing.is_empty() {
+                                self.add_log(
+                                    format!("Installing {} missing dep(s)…", missing.len()),
+                                    LogKind::Info,
+                                );
+                                let mut dot_cfg = cfg.clone();
+                                dot_cfg.dots.retain(|d| d.name == dot.name);
+                                self.ops_handle = Some(crate::ops::start_restore(dot_cfg, false));
                             }
                         }
                     }
@@ -894,7 +888,7 @@ impl App {
             }
             Some(ModalState::DepFlow(mut ws)) => {
                 let (new_m, action) = self.handle_dep_flow_key(&mut ws, key);
-                (new_m.map(|m| ModalState::DepFlow(m)), action)
+                (new_m.map(ModalState::DepFlow), action)
             }
             Some(ModalState::Error(_)) => {
                 (None, ModalAction::Close)
@@ -967,11 +961,11 @@ impl App {
             }
             _ => false,
         };
-        if show_menu {
-            if let Some(FormField::SetupSteps { items, insert_index }) = form.fields.get_mut(focused) {
-                Self::handle_check_menu_key(items, insert_index, key);
-                return ModalAction::Stay;
-            }
+        if show_menu
+            && let Some(FormField::SetupSteps { items, insert_index }) = form.fields.get_mut(focused)
+        {
+            Self::handle_check_menu_key(items, insert_index, key);
+            return ModalAction::Stay;
         }
 
         match key.code {
@@ -1285,7 +1279,7 @@ impl App {
         }
     }
 
-    fn handle_check_menu_key(items: &mut Vec<SetupFieldRow>, insert_index: &usize, key: KeyEvent) {
+    fn handle_check_menu_key(items: &mut [SetupFieldRow], insert_index: &usize, key: KeyEvent) {
         let Some(item) = items.get_mut(*insert_index) else { return };
         match key.code {
             KeyCode::Esc => {
@@ -1357,7 +1351,7 @@ impl App {
     // ── Inline step execution ──────────────────────────────────────────
 
     fn run_pending_setup(&mut self, dot_idx: usize) {
-        let Some(ref dot) = self.config.as_ref().and_then(|c| c.dots.get(dot_idx)) else {
+        let Some(dot) = self.config.as_ref().and_then(|c| c.dots.get(dot_idx)) else {
             return;
         };
         let pending = deps::pending_setup_steps(dot);

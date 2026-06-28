@@ -195,91 +195,91 @@ fn draw_detail_lines(app: &App, dot_idx: usize, lines: &mut Vec<Line>) {
     ]));
 
     // Deps section
-    if let Some(ref deps) = config.deps {
-        if !deps.is_empty() {
-            lines.push(Line::from(Span::styled(
-                " ── Dependencies ──",
-                theme::tab_active(),
-            )));
-            for dep in deps {
-                let installed = omah_lib::deps::is_installed(dep);
-                let (icon, style) = if installed {
-                    ("●", Style::new().fg(theme::SUCCESS))
-                } else {
-                    ("○", Style::new().fg(theme::ERROR))
-                };
-                lines.push(Line::from(vec![
-                    Span::styled(format!("  {icon} "), style),
-                    Span::styled(dep.clone(), Style::new().fg(theme::TEXT)),
-                    Span::styled(
-                        if installed { "  installed" } else { "  missing" },
-                        theme::dim(),
-                    ),
-                ]));
-            }
+    if let Some(ref deps) = config.deps
+        && !deps.is_empty()
+    {
+        lines.push(Line::from(Span::styled(
+            " ── Dependencies ──",
+            theme::tab_active(),
+        )));
+        for dep in deps {
+            let installed = omah_lib::deps::is_installed(dep);
+            let (icon, style) = if installed {
+                ("●", Style::new().fg(theme::SUCCESS))
+            } else {
+                ("○", Style::new().fg(theme::ERROR))
+            };
+            lines.push(Line::from(vec![
+                Span::styled(format!("  {icon} "), style),
+                Span::styled(dep.clone(), Style::new().fg(theme::TEXT)),
+                Span::styled(
+                    if installed { "  installed" } else { "  missing" },
+                    theme::dim(),
+                ),
+            ]));
         }
     }
 
     // Setup section
-    if let Some(ref steps) = config.setup {
-        if !steps.is_empty() {
-            lines.push(Line::from(Span::styled(
-                " ── Setup Steps ──",
-                theme::tab_active(),
-            )));
+    if let Some(ref steps) = config.setup
+        && !steps.is_empty()
+    {
+        lines.push(Line::from(Span::styled(
+            " ── Setup Steps ──",
+            theme::tab_active(),
+        )));
 
-            // Check for active step execution
-            let is_running = app
-                .step_exec
-                .as_ref()
-                .map(|(n, st)| n == &config.name && st.running)
-                .unwrap_or(false);
-            let exec_output = app
-                .step_exec
-                .as_ref()
-                .filter(|(n, _)| n == &config.name)
-                .map(|(_, st)| st.output.clone())
-                .unwrap_or_default();
+        // Check for active step execution
+        let is_running = app
+            .step_exec
+            .as_ref()
+            .map(|(n, st)| n == &config.name && st.running)
+            .unwrap_or(false);
+        let exec_output = app
+            .step_exec
+            .as_ref()
+            .filter(|(n, _)| n == &config.name)
+            .map(|(_, st)| st.output.clone())
+            .unwrap_or_default();
 
-            let pending = omah_lib::deps::pending_setup_steps(config);
-            for step in steps {
-                let is_pending = pending.iter().any(|p| p.install == step.install);
-                let (icon, style) = if is_running && is_pending {
-                    (" ◌", Style::new().fg(theme::PRIMARY_BRIGHT))
-                } else if is_pending {
-                    (" ○", Style::new().fg(theme::WARNING))
-                } else {
-                    (" ✓", Style::new().fg(theme::SUCCESS))
-                };
-                lines.push(Line::from(vec![
-                    Span::styled(icon, style),
-                    Span::raw(" "),
-                    Span::styled(step.install.clone(), Style::new().fg(theme::TEXT)),
-                ]));
-            }
+        let pending = omah_lib::deps::pending_setup_steps(config);
+        for step in steps {
+            let is_pending = pending.iter().any(|p| p.install == step.install);
+            let (icon, style) = if is_running && is_pending {
+                (" ◌", Style::new().fg(theme::PRIMARY_BRIGHT))
+            } else if is_pending {
+                (" ○", Style::new().fg(theme::WARNING))
+            } else {
+                (" ✓", Style::new().fg(theme::SUCCESS))
+            };
+            lines.push(Line::from(vec![
+                Span::styled(icon, style),
+                Span::raw(" "),
+                Span::styled(step.install.clone(), Style::new().fg(theme::TEXT)),
+            ]));
+        }
 
-            // Show execution output if any
-            if !exec_output.is_empty() {
-                for line in &exec_output {
-                    lines.push(Line::from(vec![
-                        Span::raw("    "),
-                        Span::styled(line.clone(), theme::text_hint()),
-                    ]));
-                }
-            }
-
-            // Action bar for setup
-            if !pending.is_empty() {
+        // Show execution output if any
+        if !exec_output.is_empty() {
+            for line in &exec_output {
                 lines.push(Line::from(vec![
                     Span::raw("    "),
-                    Span::styled("[r]", Style::new().fg(theme::PRIMARY)),
-                    Span::styled("un all ", theme::dim()),
-                    Span::styled("[s]", Style::new().fg(theme::PRIMARY)),
-                    Span::styled("kip ", theme::dim()),
-                    Span::styled("[i]", Style::new().fg(theme::PRIMARY)),
-                    Span::styled("nstall deps", theme::dim()),
+                    Span::styled(line.clone(), theme::text_hint()),
                 ]));
             }
+        }
+
+        // Action bar for setup
+        if !pending.is_empty() {
+            lines.push(Line::from(vec![
+                Span::raw("    "),
+                Span::styled("[r]", Style::new().fg(theme::PRIMARY)),
+                Span::styled("un all ", theme::dim()),
+                Span::styled("[s]", Style::new().fg(theme::PRIMARY)),
+                Span::styled("kip ", theme::dim()),
+                Span::styled("[i]", Style::new().fg(theme::PRIMARY)),
+                Span::styled("nstall deps", theme::dim()),
+            ]));
         }
     }
 

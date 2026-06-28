@@ -92,7 +92,7 @@ impl DepWorkspace {
             let cmd = self
                 .pkg_manager
                 .as_ref()
-                .map(|pm| install_command(pm, &[dep.pkg.clone()]))
+                .map(|pm| install_command(pm, std::slice::from_ref(&dep.pkg)))
                 .unwrap_or_default();
             match run_install_cmd(&cmd) {
                 Ok(()) => {
