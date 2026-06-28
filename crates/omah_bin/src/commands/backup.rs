@@ -5,7 +5,7 @@ use anyhow::Result;
 use expand_tilde::ExpandTilde;
 use omah_lib::{config::load_toml_config, ops::backup};
 
-pub fn run(config_path: &Path, no_exclude: bool, name: Option<&str>) -> Result<()> {
+pub fn run(config_path: &Path, no_exclude: bool, dry_run: bool, name: Option<&str>) -> Result<()> {
     let mut config = load_toml_config(config_path)?;
 
     // If a name is given, narrow config to just that dotfile
@@ -69,7 +69,7 @@ pub fn run(config_path: &Path, no_exclude: bool, name: Option<&str>) -> Result<(
         }
     }
 
-    backup(&config)?;
+    backup(&config, dry_run)?;
     println!("Backup complete → {}", config.vault_path);
 
     Ok(())

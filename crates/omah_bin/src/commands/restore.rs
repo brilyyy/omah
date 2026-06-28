@@ -6,11 +6,49 @@ use anyhow::Result;
 use omah_lib::{
     config::load_toml_config,
     deps::{install_command, missing_deps, pending_setup_steps, resolve_pkg_manager},
-    ops::restore,
+    ops::{diff, restore, ChangeKind},
+    DotfileConfig, OmahConfig,
 };
 
-pub fn run(config_path: &Path, name: Option<&str>) -> Result<()> {
+fn dev_overwrite_prompt(dot: &DotfileConfig, vault_path: &str) -> Result<bool> {
+    let dest = Path::new(&dot.source);
+    if !dest.exists() {
+        return Ok(true);
+    }
+    let cfg = OmahConfig {
+        vault_path: vault_path.to_string(),
+        dots: vec![dot.clone()],
+        os: None,
+        pkg_manager: None,
+    };
+    let changes = diff(&cfg)?;
+    println!("  {} → {} exists", dot.name, dest.display());
+    for c in &changes {
+        let label = match c.kind {
+            ChangeKind::Added => "added",
+            ChangeKind::Removed => "removed",
+            ChangeKind::Modified => "modified",
+        };
+        println!("      {} ({})", c.path, label);
+    }
+    print!("  Overwrite? [y/N] ");
+    io::stdout().flush()?;
+    let mut answer = String::new();
+    io::stdin().read_line(&mut answer)?;
+    Ok(answer.trim().eq_ignore_ascii_case("y"))
+}
+
+pub fn run(config_path: &Path, dry_run: bool, name: Option<&str>) -> Result<()> {
     let mut config = load_toml_config(config_path)?;
+
+    let is_dev = Path::new(".env").exists();
+    if is_dev {
+        for dot in &mut config.dots {
+            let filename = dot.source.rsplit('/').next().unwrap_or(&dot.source);
+            dot.source = format!("dev/restored/{}", filename);
+        }
+        eprintln!("→ dev mode: restoring to dev/restored/");
+    }
 
     // If a name is given, narrow config to just that dotfile
     if let Some(n) = name {
@@ -18,9 +56,22 @@ pub fn run(config_path: &Path, name: Option<&str>) -> Result<()> {
         if config.dots.is_empty() {
             anyhow::bail!("Dotfile '{}' not found in config", n);
         }
+        if is_dev {
+            let mut kept = Vec::new();
+            for dot in config.dots.drain(..) {
+                if dev_overwrite_prompt(&dot, &config.vault_path)? {
+                    kept.push(dot);
+                }
+            }
+            config.dots = kept;
+        }
         // Single-dotfile restore: skip the setup-steps prompt
-        restore(&config)?;
-        println!("Restore complete ← {}", config.vault_path);
+        if !config.dots.is_empty() {
+            restore(&config, dry_run)?;
+            if !dry_run {
+                println!("Restore complete ← {}", config.vault_path);
+            }
+        }
         return Ok(());
     }
 
@@ -110,7 +161,21 @@ pub fn run(config_path: &Path, name: Option<&str>) -> Result<()> {
         }
     }
 
-    restore(&config)?;
-    println!("Restore complete ← {}", config.vault_path);
+    if is_dev {
+        let mut kept = Vec::new();
+        for dot in config.dots.drain(..) {
+            if dev_overwrite_prompt(&dot, &config.vault_path)? {
+                kept.push(dot);
+            }
+        }
+        config.dots = kept;
+    }
+
+    if !config.dots.is_empty() {
+        restore(&config, dry_run)?;
+        if !dry_run {
+            println!("Restore complete ← {}", config.vault_path);
+        }
+    }
     Ok(())
 }

@@ -3,6 +3,17 @@ use std::path::Path;
 use anyhow::Result;
 use omah_lib::{config::load_toml_config, ops::status};
 use owo_colors::OwoColorize;
+use tabled::{settings::Style, Table, Tabled};
+
+#[derive(Tabled)]
+struct StatusRow {
+    #[tabled(rename = "Name")]
+    name: String,
+    #[tabled(rename = "Source")]
+    source: String,
+    #[tabled(rename = "State")]
+    state: String,
+}
 
 enum DeployState {
     Deployed,
@@ -34,6 +45,25 @@ impl DeployState {
     }
 }
 
+fn state_label(s: &omah_lib::ops::DotStatus) -> String {
+    let mut label = DeployState::from(s).label();
+    if !s.source_exists && s.backed_up {
+        label.push_str(&format!("  {}", "[restore to deploy]".dimmed()));
+    }
+    label
+}
+
+fn build_status_rows(statuses: &[omah_lib::ops::DotStatus]) -> Vec<StatusRow> {
+    statuses
+        .iter()
+        .map(|s| StatusRow {
+            name: s.name.clone(),
+            source: s.source.clone(),
+            state: state_label(s),
+        })
+        .collect()
+}
+
 pub fn run(config_path: &Path, json: bool) -> Result<()> {
     let config = load_toml_config(config_path)?;
     let statuses = status(&config)?;
@@ -50,45 +80,9 @@ pub fn run(config_path: &Path, json: bool) -> Result<()> {
         return Ok(());
     }
 
-    // Dynamic column widths
-    let name_w = statuses.iter().map(|s| s.name.len()).max().unwrap_or(0).max(4) + 2;
-    let src_w = statuses.iter().map(|s| s.source.len()).max().unwrap_or(0).max(6) + 2;
-
-    for s in &statuses {
-        let state = DeployState::from(s);
-        let label = state.label();
-        let extra = if !s.source_exists && s.backed_up {
-            format!("  {}", "[restore to deploy]".dimmed())
-        } else {
-            String::new()
-        };
-
-        println!(
-            "  {:<name_w$}  {:<src_w$}  {}{}",
-            s.name, s.source, label, extra,
-            name_w = name_w,
-            src_w = src_w,
-        );
-
-        let indent = " ".repeat(name_w + 4);
-
-        if !s.missing_deps.is_empty() {
-            println!(
-                "{}{}  {}",
-                indent,
-                "missing deps:".yellow(),
-                s.missing_deps.join(", ").yellow()
-            );
-        }
-        for cmd in &s.pending_setup {
-            println!(
-                "{}{}  {}",
-                indent,
-                "pending setup:".yellow(),
-                cmd.yellow()
-            );
-        }
-    }
+    let mut table = Table::new(build_status_rows(&statuses));
+    table.with(Style::rounded());
+    println!("{table}");
 
     // Summary
     let total = statuses.len();
@@ -118,5 +112,93 @@ pub fn run(config_path: &Path, json: bool) -> Result<()> {
     }
     println!();
 
+    // Footnotes for deps / setup issues
+    for s in &statuses {
+        if s.missing_deps.is_empty() && s.pending_setup.is_empty() {
+            continue;
+        }
+        println!();
+        if !s.missing_deps.is_empty() {
+            println!(
+                "  {}  {}",
+                "missing deps:".yellow(),
+                s.missing_deps.join(", ").yellow()
+            );
+        }
+        for cmd in &s.pending_setup {
+            println!(
+                "  {}  {}",
+                "pending setup:".yellow(),
+                cmd.yellow()
+            );
+        }
+    }
+
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use omah_lib::ops::DotStatus;
+
+    fn make_status(name: &str, source: &str, exists: bool, backed: bool, sym: bool) -> DotStatus {
+        DotStatus {
+            name: name.to_string(),
+            source: source.to_string(),
+            source_exists: exists,
+            backed_up: backed,
+            symlinked: sym,
+            missing_deps: vec![],
+            pending_setup: vec![],
+        }
+    }
+
+    #[test]
+    fn test_build_status_rows_single() {
+        let s = make_status("Zsh", "/home/.zshrc", true, true, false);
+        let rows = build_status_rows(&[s]);
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].name, "Zsh");
+        assert_eq!(rows[0].source, "/home/.zshrc");
+        assert!(rows[0].state.contains("deployed"));
+    }
+
+    #[test]
+    fn test_build_status_rows_multiple_states() {
+        let statuses = vec![
+            make_status("A", "/a", true, true, true),
+            make_status("B", "/b", false, true, false),
+            make_status("C", "/c", true, false, false),
+            make_status("D", "/d", false, false, false),
+        ];
+        let rows = build_status_rows(&statuses);
+        assert_eq!(rows.len(), 4);
+        assert!(rows[0].state.contains("🔗"));
+        assert!(rows[1].state.contains("○"));
+        assert!(rows[1].state.contains("restore to deploy"));
+        assert!(rows[2].state.contains("⚠"));
+        assert!(rows[3].state.contains("✗"));
+    }
+
+    #[test]
+    fn test_build_status_rows_with_deps() {
+        let mut s = make_status("Nvim", "/nvim", true, true, false);
+        s.missing_deps = vec!["git".to_string()];
+        s.pending_setup = vec!["brew install lazygit".to_string()];
+        let rows = build_status_rows(&[s]);
+        assert_eq!(rows.len(), 1);
+        // state stays clean; deps handled by footnotes
+        assert!(!rows[0].state.contains("git"));
+    }
+
+    #[test]
+    fn test_status_json_output() {
+        let dir = tempfile::tempdir().unwrap();
+        let cfg = dir.path().join("config.toml");
+        std::fs::write(&cfg, r#"vault_path = "/tmp/vault""#).unwrap();
+        // no dots — returns Ok(()), prints "No dotfiles configured."
+        let result = run(&cfg, true);
+        assert!(result.is_ok());
+    }
 }

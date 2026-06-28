@@ -114,10 +114,12 @@ fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Commands::Init => commands::init::run(&config_path),
-        Commands::Backup { no_exclude, name } => {
-            commands::backup::run(&config_path, no_exclude, name.as_deref())
+        Commands::Backup { no_exclude, name, dry_run } => {
+            commands::backup::run(&config_path, no_exclude, dry_run, name.as_deref())
         }
-        Commands::Restore { name } => commands::restore::run(&config_path, name.as_deref()),
+        Commands::Restore { name, dry_run } => {
+            commands::restore::run(&config_path, dry_run, name.as_deref())
+        }
         Commands::Status { json } => commands::status::run(&config_path, json),
         Commands::List { json } => commands::list::run(&config_path, json),
         Commands::Diff { json } => commands::diff::run(&config_path, json),

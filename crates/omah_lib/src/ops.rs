@@ -143,15 +143,21 @@ fn remove_path(path: &Path) -> Result<()> {
 
 // ── Public operations ──────────────────────────────────────────────────────
 
-pub fn backup(config: &OmahConfig) -> Result<()> {
+pub fn backup(config: &OmahConfig, dry_run: bool) -> Result<()> {
     let vault = expand_path(&config.vault_path)?;
-    fs::create_dir_all(&vault)?;
+
+    if dry_run {
+        println!("Backup plan:\n");
+    } else {
+        fs::create_dir_all(&vault)?;
+    }
 
     for dot in &config.dots {
         let source = expand_path(&dot.source)?;
-        let filename = source
-            .file_name()
-            .ok_or_else(|| anyhow::anyhow!("Source has no filename: {}", source.display()))?;
+        let filename = match source.file_name() {
+            Some(f) => f.to_owned(),
+            None => anyhow::bail!("'{}': source has no filename", dot.name),
+        };
         let dest = vault.join(&dot.name).join(filename);
         let excludes = dot.exclude.as_deref().unwrap_or(&[]);
 
@@ -162,66 +168,122 @@ pub fn backup(config: &OmahConfig) -> Result<()> {
         let already_symlinked_to_dest = source.is_symlink()
             && fs::read_link(&source).map(|t| t == dest).unwrap_or(false);
 
-        if !already_symlinked_to_dest {
-            let total = count_files(&source, excludes);
-            let show_progress = total > 5 && io::stderr().is_terminal();
-            if show_progress {
-                eprint!("  {}: ", dot.name);
+        if already_symlinked_to_dest {
+            if dry_run {
+                println!("  {}: up-to-date (symlink → vault)", dot.name);
             }
-            let counter = AtomicU64::new(0);
-            let progress = show_progress.then_some((&counter, total));
+            continue;
+        }
 
-            copy_recursive(&source, &dest, excludes, progress).with_context(
-                || format!("Failed to backup '{}' from {}", dot.name, source.display()),
-            )?;
-
-            if show_progress {
-                eprintln!();
+        if !source.exists() {
+            if dry_run {
+                println!("  {}: !!! source not found", dot.name);
+                continue;
             }
+            anyhow::bail!("Source not found: {}", source.display());
+        }
 
-            if dot.symlink.unwrap_or(false) {
-                remove_path(&source)
-                    .with_context(|| format!("Failed to remove source for '{}'", dot.name))?;
-                std::os::unix::fs::symlink(&dest, &source)
-                    .with_context(|| format!("Failed to create symlink for '{}'", dot.name))?;
-            }
+        let total = count_files(&source, excludes);
+
+        if dry_run {
+            let sym = if dot.symlink.unwrap_or(false) { " [symlink]" } else { "" };
+            println!("  {}: {} → {} ({} files){}", dot.name, source.display(), dest.display(), total, sym);
+            continue;
+        }
+
+        let show_progress = total > 5 && io::stderr().is_terminal();
+        if show_progress {
+            eprint!("  {}: ", dot.name);
+        }
+        let counter = AtomicU64::new(0);
+        let progress = show_progress.then_some((&counter, total));
+
+        copy_recursive(&source, &dest, excludes, progress).with_context(
+            || format!("Failed to backup '{}' from {}", dot.name, source.display()),
+        )?;
+
+        if show_progress {
+            eprintln!();
+        }
+
+        if dot.symlink.unwrap_or(false) {
+            remove_path(&source)
+                .with_context(|| format!("Failed to remove source for '{}'", dot.name))?;
+            std::os::unix::fs::symlink(&dest, &source)
+                .with_context(|| format!("Failed to create symlink for '{}'", dot.name))?;
         }
     }
 
     Ok(())
 }
 
-pub fn restore(config: &OmahConfig) -> Result<()> {
+pub fn restore(config: &OmahConfig, dry_run: bool) -> Result<()> {
     let vault = expand_path(&config.vault_path)?;
     let mut errors: Vec<String> = Vec::new();
+
+    if dry_run {
+        println!("Restore plan:\n");
+    }
 
     for dot in &config.dots {
         let source = match expand_path(&dot.source) {
             Ok(p) => p,
             Err(e) => {
-                errors.push(e.to_string());
+                let msg = e.to_string();
+                if dry_run {
+                    println!("  {}: !!! source error: {}", dot.name, msg);
+                } else {
+                    errors.push(msg);
+                }
                 continue;
             }
         };
         let filename = match source.file_name() {
             Some(f) => f.to_owned(),
             None => {
-                errors.push(format!("'{}': source has no filename", dot.name));
+                let msg = format!("'{}': source has no filename", dot.name);
+                if dry_run {
+                    println!("  {}: !!! {}", dot.name, msg);
+                } else {
+                    errors.push(msg);
+                }
                 continue;
             }
         };
         let vault_entry = vault.join(&dot.name).join(&filename);
 
         if !vault_entry.exists() {
-            errors.push(format!(
-                "'{}': vault entry not found at {}",
-                dot.name,
-                vault_entry.display()
-            ));
+            let msg = format!("'{}': vault entry not found at {}", dot.name, vault_entry.display());
+            if dry_run {
+                println!("  {}: !!! {}", dot.name, msg);
+            } else {
+                errors.push(msg);
+            }
             continue;
         }
 
-        let result = if dot.symlink.unwrap_or(false) {
+        let makes_symlink = dot.symlink.unwrap_or(false);
+
+        // Idempotent: if source is already a symlink to the vault entry, skip.
+        let already_symlinked_to_dest = makes_symlink
+            && source.is_symlink()
+            && fs::read_link(&source).map(|t| t == vault_entry).unwrap_or(false);
+
+        if already_symlinked_to_dest {
+            if dry_run {
+                println!("  {}: up-to-date (symlink → vault)", dot.name);
+            }
+            continue;
+        }
+
+        if dry_run {
+            let total = count_files(&vault_entry, &[]);
+            let sym = if makes_symlink { " [symlink]" } else { "" };
+            println!("  {}: {} → {} ({} files){}", dot.name, vault_entry.display(), source.display(), total, sym);
+            continue;
+        }
+
+        let result = if makes_symlink {
             (|| -> Result<()> {
                 remove_path(&source).with_context(|| {
                     format!("Failed to remove existing source for '{}'", dot.name)
@@ -259,7 +321,7 @@ pub fn restore(config: &OmahConfig) -> Result<()> {
         }
     }
 
-    if !errors.is_empty() {
+    if !dry_run && !errors.is_empty() {
         anyhow::bail!("Restore completed with errors:\n  {}", errors.join("\n  "));
     }
 
@@ -460,7 +522,7 @@ mod tests {
             vault_dir.path().to_str().unwrap(),
             vec![dot("Zsh", source.to_str().unwrap(), None)],
         );
-        backup(&config).unwrap();
+        backup(&config, false).unwrap();
 
         let vault_entry = vault_dir.path().join("Zsh").join("zshrc");
         assert!(vault_entry.is_file());
@@ -481,7 +543,7 @@ mod tests {
             vault_dir.path().to_str().unwrap(),
             vec![dot("Nvim", nvim.to_str().unwrap(), None)],
         );
-        backup(&config).unwrap();
+        backup(&config, false).unwrap();
 
         let vault_entry = vault_dir.path().join("Nvim").join("nvim");
         assert!(vault_entry.is_dir());
@@ -500,7 +562,7 @@ mod tests {
             vault.to_str().unwrap(),
             vec![dot("File", source.to_str().unwrap(), None)],
         );
-        backup(&config).unwrap();
+        backup(&config, false).unwrap();
 
         assert!(vault.is_dir());
         assert!(vault.join("File").join("file.txt").is_file());
@@ -517,7 +579,7 @@ mod tests {
             vault_dir.path().to_str().unwrap(),
             vec![dot("Zsh", source.to_str().unwrap(), Some(true))],
         );
-        backup(&config).unwrap();
+        backup(&config, false).unwrap();
 
         let vault_entry = vault_dir.path().join("Zsh").join("zshrc");
         assert!(vault_entry.is_file());
@@ -540,8 +602,8 @@ mod tests {
             vec![dot("Zsh", source.to_str().unwrap(), Some(true))],
         );
 
-        backup(&config).unwrap(); // first backup: copies file, creates symlink
-        backup(&config).unwrap(); // second backup: must not zero out the vault
+        backup(&config, false).unwrap(); // first backup: copies file, creates symlink
+        backup(&config, false).unwrap(); // second backup: must not zero out the vault
 
         let vault_entry = vault_dir.path().join("Zsh").join("zshrc");
         assert_eq!(fs::read_to_string(&vault_entry).unwrap(), "# my zsh config");
@@ -555,7 +617,7 @@ mod tests {
             vault_dir.path().to_str().unwrap(),
             vec![dot("Missing", "/nonexistent/path/file.txt", None)],
         );
-        assert!(backup(&config).is_err());
+        assert!(backup(&config, false).is_err());
     }
 
     #[test]
@@ -573,7 +635,7 @@ mod tests {
             vault_dir.path().to_str().unwrap(),
             vec![dot_excl("Cfg", dir.to_str().unwrap(), vec!["*.log", ".git"])],
         );
-        backup(&config).unwrap();
+        backup(&config, false).unwrap();
 
         let vault = vault_dir.path().join("Cfg").join("cfg");
         assert!(vault.join("init.lua").is_file());
@@ -597,7 +659,7 @@ mod tests {
             vault_dir.path().to_str().unwrap(),
             vec![dot("Zsh", dest.to_str().unwrap(), None)],
         );
-        restore(&config).unwrap();
+        restore(&config, false).unwrap();
 
         assert!(dest.is_file());
         assert_eq!(fs::read_to_string(&dest).unwrap(), "# restored zsh");
@@ -617,7 +679,7 @@ mod tests {
             vault_dir.path().to_str().unwrap(),
             vec![dot("Nvim", dest.to_str().unwrap(), None)],
         );
-        restore(&config).unwrap();
+        restore(&config, false).unwrap();
 
         assert!(dest.is_dir());
         assert!(dest.join("init.lua").is_file());
@@ -637,7 +699,7 @@ mod tests {
             vault_dir.path().to_str().unwrap(),
             vec![dot("Zsh", dest.to_str().unwrap(), Some(true))],
         );
-        restore(&config).unwrap();
+        restore(&config, false).unwrap();
 
         assert!(dest.is_symlink());
         assert_eq!(fs::read_link(&dest).unwrap(), vault_entry);
@@ -653,7 +715,7 @@ mod tests {
             vault_dir.path().to_str().unwrap(),
             vec![dot("Zsh", dest.to_str().unwrap(), None)],
         );
-        assert!(restore(&config).is_err());
+        assert!(restore(&config, false).is_err());
     }
 
     // ── status ────────────────────────────────────────────────────────────────
@@ -688,7 +750,7 @@ mod tests {
             vault_dir.path().to_str().unwrap(),
             vec![dot("Zsh", source.to_str().unwrap(), None)],
         );
-        backup(&config).unwrap();
+        backup(&config, false).unwrap();
         let statuses = status(&config).unwrap();
 
         assert!(statuses[0].source_exists);
@@ -707,7 +769,7 @@ mod tests {
             vault_dir.path().to_str().unwrap(),
             vec![dot("Zsh", source.to_str().unwrap(), Some(true))],
         );
-        backup(&config).unwrap();
+        backup(&config, false).unwrap();
         let statuses = status(&config).unwrap();
 
         assert!(statuses[0].source_exists);
@@ -757,7 +819,7 @@ mod tests {
             vault_dir.path().to_str().unwrap(),
             vec![dot("Zsh", source.to_str().unwrap(), None)],
         );
-        backup(&config).unwrap();
+        backup(&config, false).unwrap();
         let changes = diff(&config).unwrap();
         assert!(changes.is_empty());
     }
@@ -773,7 +835,7 @@ mod tests {
             vault_dir.path().to_str().unwrap(),
             vec![dot("Zsh", source.to_str().unwrap(), None)],
         );
-        backup(&config).unwrap();
+        backup(&config, false).unwrap();
         fs::write(&source, "# zsh edited").unwrap();
         let changes = diff(&config).unwrap();
         assert_eq!(changes.len(), 1);

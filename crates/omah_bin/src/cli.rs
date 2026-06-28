@@ -25,12 +25,18 @@ pub enum Commands {
         /// Only back up this dotfile
         #[arg(value_name = "NAME")]
         name: Option<String>,
+        /// Show what would be backed up without copying
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Restore all dotfiles (or a single named dotfile) from the vault
     Restore {
         /// Only restore this dotfile
         #[arg(value_name = "NAME")]
         name: Option<String>,
+        /// Show what would be restored without copying
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Show sync status of all dotfiles
     Status {
