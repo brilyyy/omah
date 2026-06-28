@@ -1,16 +1,16 @@
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::Rect,
     style::{Modifier, Style, Stylize},
     text::{Line, Span, Text},
-    widgets::{Block, BorderType, Borders, Cell, Paragraph, Row, Table, Wrap},
+    widgets::{Block, BorderType, Borders, Paragraph, Wrap},
 };
 
 use crate::{app::App, theme};
 
-// ── Status tab ───────────────────────────────────────────────────────────
+// ── Dots tab — card layout ────────────────────────────────────────────
 
-pub fn draw_status(frame: &mut Frame, area: Rect, app: &App) {
+pub fn draw_dots(frame: &mut Frame, area: Rect, app: &App) {
     let block = Block::default()
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
@@ -33,201 +33,149 @@ pub fn draw_status(frame: &mut Frame, area: Rect, app: &App) {
             );
             return;
         }
-        _statuses => {
+        _ => {
             frame.render_widget(&block, area);
         }
     }
 
-    // Split: table area + summary footer
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(1), Constraint::Length(3)])
-        .split(inner);
+    // ── Card list ─────────────────────────────────────────────────────
+    let filtered = app.filtered_statuses();
 
-    // ── Status table ───────────────────────────────────────────────────
-    let header_style = Style::new()
-        .fg(theme::PRIMARY_BRIGHT)
-        .add_modifier(Modifier::BOLD)
-        .bg(theme::SURFACE_LIGHT);
+    // Each card is 3 lines collapsed, more when expanded
+    let card_lines: Vec<Line> = build_card_lines(app, &filtered);
 
-    let header_cells = ["Name", "State", "Deps", "Setup"]
-        .iter()
-        .map(|h| Cell::from(Span::styled(*h, header_style)));
-    let header = Row::new(header_cells).height(1).style(
-        Style::new().bg(theme::SURFACE_LIGHT),
-    );
-
-    let widths = [
-        Constraint::Length(16),
-        Constraint::Length(20),
-        Constraint::Length(20),
-        Constraint::Length(16),
-    ];
-
-    let rows: Vec<Row> = app
-        .statuses
-        .iter()
-        .enumerate()
-        .map(|(i, s)| {
-            let selected = i == app.selected_index;
-            let row_style = if selected {
-                Style::new().bg(theme::SURFACE_SELECTED)
-            } else if i % 2 == 0 {
-                Style::new().bg(theme::BG)
-            } else {
-                Style::new().bg(theme::SURFACE)
-            };
-
-            // State badge
-            let state_span = if s.symlinked {
-                Span::styled("🔗 deployed", Style::new().fg(theme::PRIMARY_BRIGHT))
-            } else if s.source_exists && s.backed_up {
-                Span::styled("✓ deployed", Style::new().fg(theme::SUCCESS))
-            } else if s.backed_up {
-                Span::styled("○ available", Style::new().fg(theme::PRIMARY))
-            } else if s.source_exists {
-                Span::styled("⚠ unbacked", Style::new().fg(theme::WARNING))
-            } else {
-                Span::styled("✗ missing", Style::new().fg(theme::ERROR))
-            };
-
-            // Deps badge
-            let deps_text = if s.missing_deps.is_empty() {
-                "—".to_string()
-            } else {
-                format!("✗ {} missing", s.missing_deps.len())
-            };
-            let deps_style = if s.missing_deps.is_empty() {
-                theme::dim()
-            } else {
-                Style::new().fg(theme::ERROR)
-            };
-
-            // Setup badge
-            let setup_text = if s.pending_setup.is_empty() {
-                "—".to_string()
-            } else {
-                format!("○ {} pending", s.pending_setup.len())
-            };
-            let setup_style = if s.pending_setup.is_empty() {
-                theme::dim()
-            } else {
-                Style::new().fg(theme::WARNING)
-            };
-
-            let name_prefix = if selected { "▸ " } else { "  " };
-            let name_cell = Cell::from(Span::styled(
-                format!("{}{}", name_prefix, s.name),
-                if selected {
-                    Style::new().fg(theme::PRIMARY_BRIGHT).add_modifier(Modifier::BOLD)
-                } else {
-                    Style::new().fg(theme::TEXT)
-                },
-            ));
-
-            Row::new(vec![
-                name_cell,
-                Cell::from(state_span),
-                Cell::from(Span::styled(deps_text, deps_style)),
-                Cell::from(Span::styled(setup_text, setup_style)),
-            ])
-            .style(row_style)
-            .height(1)
-        })
-        .collect();
-
-    let table = Table::new(rows, widths)
-        .header(header)
-        .column_spacing(2);
-    frame.render_widget(table, chunks[0]);
-
-    // ── Summary footer ────────────────────────────────────────────────
-    let total = app.statuses.len();
-    let deployed = app.statuses.iter().filter(|s| s.source_exists && s.backed_up).count();
-    let available = app.statuses.iter().filter(|s| !s.source_exists && s.backed_up).count();
-    let unbacked = app.statuses.iter().filter(|s| s.source_exists && !s.backed_up).count();
-    let missing = app.statuses.iter().filter(|s| !s.source_exists && !s.backed_up).count();
-
-    let mut summary_parts = vec![
-        Span::styled(format!(" {total} dotfile(s)"), Style::new().fg(theme::PRIMARY_BRIGHT)),
-    ];
-    if deployed > 0 {
-        summary_parts.push(Span::styled(
-            format!(" · {deployed} deployed"),
-            Style::new().fg(theme::SUCCESS),
-        ));
-    }
-    if available > 0 {
-        summary_parts.push(Span::styled(
-            format!(" · {available} available"),
-            Style::new().fg(theme::PRIMARY),
-        ));
-    }
-    if unbacked > 0 {
-        summary_parts.push(Span::styled(
-            format!(" · {unbacked} unbacked"),
-            Style::new().fg(theme::WARNING),
-        ));
-    }
-    if missing > 0 {
-        summary_parts.push(Span::styled(
-            format!(" · {missing} missing"),
-            Style::new().fg(theme::ERROR),
-        ));
-    }
-
+    let text = Text::from(card_lines);
     frame.render_widget(
-        Paragraph::new(Line::from(summary_parts))
-            .style(Style::new().bg(theme::SURFACE)),
-        chunks[1],
+        Paragraph::new(text)
+            .wrap(Wrap { trim: true }),
+        inner,
     );
 }
 
-// ── Details tab ──────────────────────────────────────────────────────────
+fn build_card_lines<'a>(app: &'a App, filtered: &[(usize, &'a omah_lib::ops::DotStatus)]) -> Vec<Line<'a>> {
+    let mut lines: Vec<Line> = Vec::new();
+    let diff_map = app.diff_map();
 
-pub fn draw_details(frame: &mut Frame, area: Rect, app: &App) {
-    let dot = app.statuses.get(app.selected_index);
-    let config_dot = app.config.as_ref().and_then(|c| c.dots.get(app.selected_index));
+    for (list_idx, (actual_idx, s)) in filtered.iter().enumerate() {
+        let selected = list_idx == app.selected_index;
+        let is_expanded = app.detail_expanded == Some(*actual_idx);
 
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .border_style(theme::border())
-        .title(match dot {
-            Some(s) => format!(" {} ", s.name),
-            None => " Dotfile ".to_string(),
-        });
+        // ── Card header: name + status badge ──────────────────────────
+        let name_style = if selected {
+            Style::new().fg(theme::PRIMARY_BRIGHT).add_modifier(Modifier::BOLD)
+        } else {
+            Style::new().fg(theme::TEXT)
+        };
+        let selector = if selected { "▸ " } else { "  " };
 
-    let inner = block.inner(area);
+        let mut header_spans = vec![
+            Span::styled(selector, theme::dim()),
+            Span::styled(s.name.clone(), name_style),
+            Span::raw("  "),
+            status_badge(s),
+        ];
 
-    match dot {
-        None => {
-            frame.render_widget(
-                Paragraph::new(Text::from(Line::from(Span::styled(
-                    " Select a dotfile from the Status tab to view details.",
-                    theme::dim(),
-                ))))
-                .block(block),
-                area,
-            );
-            return;
+        // Diff indicator
+        let dot_changes = diff_map.get(s.name.as_str()).map(|v| v.len()).unwrap_or(0);
+        if dot_changes > 0 {
+            header_spans.push(Span::raw("  "));
+            header_spans.push(Span::styled(
+                format!("~{dot_changes}"),
+                Style::new().fg(theme::WARNING).bold(),
+            ));
+            header_spans.push(Span::styled(" diff", theme::dim()));
         }
-        Some(_) => {
-            frame.render_widget(&block, area);
+
+        lines.push(Line::from(header_spans));
+
+        // ── Card summary: deps chips + setup count ────────────────────
+        let mut summary_spans = vec![Span::raw("    ")];
+
+        // Dep chips
+        if !s.missing_deps.is_empty() {
+            summary_spans.push(Span::styled(
+                format!(" ✗{} ", s.missing_deps.len()),
+                Style::new().fg(theme::ERROR),
+            ));
+            summary_spans.push(Span::styled("deps", theme::dim()));
+            summary_spans.push(Span::raw(" "));
+        } else {
+            summary_spans.push(Span::styled(" ✓ ", Style::new().fg(theme::SUCCESS)));
+            summary_spans.push(Span::styled("deps", theme::dim()));
+            summary_spans.push(Span::raw(" "));
+        }
+
+        // Setup count
+        if !s.pending_setup.is_empty() {
+            summary_spans.push(Span::styled(
+                format!("○{} ", s.pending_setup.len()),
+                Style::new().fg(theme::WARNING),
+            ));
+            summary_spans.push(Span::styled("setup", theme::dim()));
+        } else {
+            summary_spans.push(Span::styled(" ✓ ", Style::new().fg(theme::SUCCESS)));
+            summary_spans.push(Span::styled("setup", theme::dim()));
+        }
+
+        // Source
+        summary_spans.push(Span::raw("  "));
+        summary_spans.push(Span::styled(s.source.clone(), theme::dim()));
+
+        lines.push(Line::from(summary_spans));
+
+        // ── Action bar ────────────────────────────────────────────────
+        lines.push(Line::from(vec![
+            Span::raw("    "),
+            Span::styled("[b]", Style::new().fg(theme::PRIMARY)),
+            Span::styled("ackup ", theme::dim()),
+            Span::styled("[r]", Style::new().fg(theme::PRIMARY)),
+            Span::styled("estore ", theme::dim()),
+            Span::styled("[e]", Style::new().fg(theme::PRIMARY)),
+            Span::styled("dit ", theme::dim()),
+            Span::styled("[x]", Style::new().fg(theme::PRIMARY)),
+            Span::styled("remove", theme::dim()),
+        ]));
+
+        // ── Expanded detail panel ─────────────────────────────────────
+        if is_expanded {
+            draw_detail_lines(app, *actual_idx, &mut lines);
         }
     }
 
-    let s = dot.unwrap();
+    lines
+}
 
-    // Build detail rows
-    let mut lines: Vec<Line> = Vec::new();
+fn status_badge(s: &omah_lib::ops::DotStatus) -> Span<'static> {
+    if s.symlinked {
+        Span::styled("🔗 deployed", Style::new().fg(theme::PRIMARY_BRIGHT))
+    } else if s.source_exists && s.backed_up {
+        Span::styled("✓ deployed", Style::new().fg(theme::SUCCESS))
+    } else if s.backed_up {
+        Span::styled("○ available", Style::new().fg(theme::PRIMARY))
+    } else if s.source_exists {
+        Span::styled("⚠ unbacked", Style::new().fg(theme::WARNING))
+    } else {
+        Span::styled("✗ missing", Style::new().fg(theme::ERROR))
+    }
+}
 
-    // ── General info ────────────────────────────────────────────────
-    lines.push(Line::from(Span::styled(" General", theme::tab_active())));
-    lines.push(Line::from(Span::raw("")));
+fn draw_detail_lines(app: &App, dot_idx: usize, lines: &mut Vec<Line>) {
+    let config = match app.config.as_ref().and_then(|c| c.dots.get(dot_idx)) {
+        Some(d) => d,
+        None => return,
+    };
+    let s = match app.statuses.get(dot_idx) {
+        Some(s) => s,
+        None => return,
+    };
+
+    lines.push(Line::from(Span::styled(
+        " ── Locations ──",
+        theme::tab_active(),
+    )));
 
     let state_text = if s.symlinked {
-        "🔗 deployed (symlink)".to_string()
+        "🔗 symlinked".to_string()
     } else if s.source_exists && s.backed_up {
         "✓ deployed".to_string()
     } else if s.backed_up {
@@ -238,157 +186,104 @@ pub fn draw_details(frame: &mut Frame, area: Rect, app: &App) {
         "✗ missing".to_string()
     };
     lines.push(Line::from(vec![
-        Span::styled("  Source:     ", theme::dim()),
+        Span::styled("  Source:  ", theme::dim()),
         Span::styled(s.source.clone(), Style::new().fg(theme::TEXT)),
     ]));
     lines.push(Line::from(vec![
-        Span::styled("  State:      ", theme::dim()),
+        Span::styled("  State:   ", theme::dim()),
         Span::styled(state_text, Style::new().fg(theme::TEXT)),
     ]));
-    lines.push(Line::from(Span::raw("")));
 
-    // ── Dependencies ────────────────────────────────────────────────
-    if let Some(ref dot_cfg) = config_dot {
-        if let Some(ref deps) = dot_cfg.deps {
-            if !deps.is_empty() {
-                lines.push(Line::from(Span::styled(" Dependencies", theme::tab_active())));
-                lines.push(Line::from(Span::raw("")));
-                for dep in deps {
-                    let installed = omah_lib::deps::is_installed(dep);
-                    let (icon, style) = if installed {
-                        ("●", Style::new().fg(theme::SUCCESS))
-                    } else {
-                        ("○", Style::new().fg(theme::ERROR))
-                    };
-                    lines.push(Line::from(vec![
-                        Span::styled(format!("  {icon} "), style),
-                        Span::styled(dep.clone(), Style::new().fg(theme::TEXT)),
-                        Span::styled(
-                            if installed { "  (installed)" } else { "  (missing)" },
-                            theme::dim(),
-                        ),
-                    ]));
-                }
-                lines.push(Line::from(Span::raw("")));
-            }
-        }
-
-        // ── Setup steps ──────────────────────────────────────────────
-        if let Some(ref steps) = dot_cfg.setup {
-            if !steps.is_empty() {
-                lines.push(Line::from(Span::styled(" Setup Steps", theme::tab_active())));
-                lines.push(Line::from(Span::raw("")));
-                let pending = omah_lib::deps::pending_setup_steps(dot_cfg);
-                for step in steps {
-                    let is_pending = pending.iter().any(|p| p.install == step.install);
-                    let (icon, style) = if is_pending {
-                        ("○", Style::new().fg(theme::WARNING))
-                    } else {
-                        ("✓", Style::new().fg(theme::SUCCESS))
-                    };
-                    let check_info = step
-                        .check
-                        .as_deref()
-                        .map(|c| format!("  [{c}]"))
-                        .unwrap_or_default();
-                    lines.push(Line::from(vec![
-                        Span::styled(format!("  {icon} "), style),
-                        Span::styled(step.install.clone(), Style::new().fg(theme::TEXT)),
-                        Span::styled(check_info, theme::dim()),
-                        Span::styled(
-                            if is_pending { "  (pending)" } else { "  (done)" },
-                            theme::dim(),
-                        ),
-                    ]));
-                }
-                lines.push(Line::from(Span::raw("")));
-            }
-        }
-
-        // ── Excludes ──────────────────────────────────────────────
-        if let Some(ref exclude) = dot_cfg.exclude {
-            if !exclude.is_empty() {
-                lines.push(Line::from(Span::styled(" Exclude", theme::tab_active())));
-                lines.push(Line::from(Span::raw("")));
-                for pat in exclude {
-                    lines.push(Line::from(vec![
-                        Span::styled("  ⊘ ", Style::new().fg(theme::DIM)),
-                        Span::styled(pat.clone(), theme::text_hint()),
-                    ]));
-                }
-                lines.push(Line::from(Span::raw("")));
-            }
-        }
-    }
-
-    let text = Text::from(lines);
-    frame.render_widget(
-        Paragraph::new(text)
-            .wrap(Wrap { trim: true })
-            .style(Style::new().bg(theme::BG)),
-        inner,
-    );
-}
-
-// ── Diff tab ─────────────────────────────────────────────────────────────
-
-pub fn draw_diff(frame: &mut Frame, area: Rect, app: &App) {
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .border_style(theme::border())
-        .title(" Changes ");
-
-    let inner = block.inner(area);
-
-    if app.changes.is_empty() {
-        frame.render_widget(
-            Paragraph::new(Text::from(Line::from(Span::styled(
-                " No changes — all dotfiles are in sync with the vault.",
-                Style::new().fg(theme::SUCCESS),
-            ))))
-            .block(block),
-            area,
-        );
-        return;
-    }
-    frame.render_widget(&block, area);
-
-    // Group changes by dot_name
-    let mut lines: Vec<Line> = Vec::new();
-    let mut current_dot = String::new();
-
-    for c in &app.changes {
-        if c.dot_name != current_dot {
-            current_dot = c.dot_name.clone();
+    // Deps section
+    if let Some(ref deps) = config.deps {
+        if !deps.is_empty() {
             lines.push(Line::from(Span::styled(
-                format!(" {}", current_dot),
-                Style::new()
-                    .fg(theme::PRIMARY_BRIGHT)
-                    .add_modifier(Modifier::BOLD),
+                " ── Dependencies ──",
+                theme::tab_active(),
             )));
+            for dep in deps {
+                let installed = omah_lib::deps::is_installed(dep);
+                let (icon, style) = if installed {
+                    ("●", Style::new().fg(theme::SUCCESS))
+                } else {
+                    ("○", Style::new().fg(theme::ERROR))
+                };
+                lines.push(Line::from(vec![
+                    Span::styled(format!("  {icon} "), style),
+                    Span::styled(dep.clone(), Style::new().fg(theme::TEXT)),
+                    Span::styled(
+                        if installed { "  installed" } else { "  missing" },
+                        theme::dim(),
+                    ),
+                ]));
+            }
         }
-
-        let (icon, style, label) = match c.kind {
-            omah_lib::ops::ChangeKind::Added => ("+", Style::new().fg(theme::SUCCESS), "new in source"),
-            omah_lib::ops::ChangeKind::Modified => ("~", Style::new().fg(theme::WARNING), "modified"),
-            omah_lib::ops::ChangeKind::Removed => ("-", Style::new().fg(theme::ERROR), "only in vault"),
-        };
-
-        lines.push(Line::from(vec![
-            Span::raw("    "),
-            Span::styled(format!(" {icon} "), style.bold()),
-            Span::styled(c.path.clone(), Style::new().fg(theme::TEXT)),
-            Span::raw("  "),
-            Span::styled(label, theme::dim()),
-        ]));
     }
 
-    frame.render_widget(
-        Paragraph::new(Text::from(lines))
-            .wrap(Wrap { trim: true }),
-        inner,
-    );
+    // Setup section
+    if let Some(ref steps) = config.setup {
+        if !steps.is_empty() {
+            lines.push(Line::from(Span::styled(
+                " ── Setup Steps ──",
+                theme::tab_active(),
+            )));
+
+            // Check for active step execution
+            let is_running = app
+                .step_exec
+                .as_ref()
+                .map(|(n, st)| n == &config.name && st.running)
+                .unwrap_or(false);
+            let exec_output = app
+                .step_exec
+                .as_ref()
+                .filter(|(n, _)| n == &config.name)
+                .map(|(_, st)| st.output.clone())
+                .unwrap_or_default();
+
+            let pending = omah_lib::deps::pending_setup_steps(config);
+            for step in steps {
+                let is_pending = pending.iter().any(|p| p.install == step.install);
+                let (icon, style) = if is_running && is_pending {
+                    (" ◌", Style::new().fg(theme::PRIMARY_BRIGHT))
+                } else if is_pending {
+                    (" ○", Style::new().fg(theme::WARNING))
+                } else {
+                    (" ✓", Style::new().fg(theme::SUCCESS))
+                };
+                lines.push(Line::from(vec![
+                    Span::styled(icon, style),
+                    Span::raw(" "),
+                    Span::styled(step.install.clone(), Style::new().fg(theme::TEXT)),
+                ]));
+            }
+
+            // Show execution output if any
+            if !exec_output.is_empty() {
+                for line in &exec_output {
+                    lines.push(Line::from(vec![
+                        Span::raw("    "),
+                        Span::styled(line.clone(), theme::text_hint()),
+                    ]));
+                }
+            }
+
+            // Action bar for setup
+            if !pending.is_empty() {
+                lines.push(Line::from(vec![
+                    Span::raw("    "),
+                    Span::styled("[r]", Style::new().fg(theme::PRIMARY)),
+                    Span::styled("un all ", theme::dim()),
+                    Span::styled("[s]", Style::new().fg(theme::PRIMARY)),
+                    Span::styled("kip ", theme::dim()),
+                    Span::styled("[i]", Style::new().fg(theme::PRIMARY)),
+                    Span::styled("nstall deps", theme::dim()),
+                ]));
+            }
+        }
+    }
+
+    lines.push(Line::from(Span::raw("")));
 }
 
 // ── Log tab ──────────────────────────────────────────────────────────────
@@ -435,3 +330,103 @@ pub fn draw_log(frame: &mut Frame, area: Rect, app: &App) {
         inner,
     );
 }
+
+// ── Settings modal ───────────────────────────────────────────────────────
+
+pub fn draw_settings(frame: &mut Frame, area: Rect, app: &App) {
+    let sf = match &app.settings_form {
+        Some(f) => f,
+        None => return,
+    };
+
+    let mut lines: Vec<Line> = Vec::new();
+
+    // Vault path
+    let vault_focused = sf.focused == 0;
+    let vault_style = if vault_focused {
+        Style::new().fg(theme::PRIMARY_BRIGHT)
+    } else {
+        theme::dim()
+    };
+    lines.push(Line::from(vec![
+        Span::styled(" Vault Path:", Style::new().fg(theme::TEXT_DIM)),
+    ]));
+    lines.push(Line::from(vec![
+        Span::raw("  "),
+        Span::styled(sf.vault_path.clone(), vault_style),
+    ]));
+    if vault_focused {
+        // Show cursor indicator
+        lines.push(Line::from(Span::styled(
+            "   ↑↓ to edit",
+            theme::text_hint(),
+        )));
+    }
+    lines.push(Line::from(Span::raw("")));
+
+    // OS selector
+    lines.push(Line::from(vec![
+        Span::styled(" OS:", Style::new().fg(theme::TEXT_DIM)),
+    ]));
+    let os_line: Vec<Span> = SettingsForm::OS_OPTIONS
+        .iter()
+        .enumerate()
+        .flat_map(|(i, opt)| {
+            let selected = i == sf.os_index;
+            let focused = sf.focused == 1;
+            let style = if selected && focused {
+                Style::new().fg(theme::PRIMARY_BRIGHT).bold()
+            } else if selected {
+                Style::new().fg(theme::TEXT)
+            } else {
+                theme::dim()
+            };
+            let mut spans = vec![Span::raw("  "), Span::styled(*opt, style)];
+            if i < SettingsForm::OS_OPTIONS.len() - 1 {
+                spans.push(Span::styled(" │", theme::dim()));
+            }
+            spans
+        })
+        .collect();
+    lines.push(Line::from(os_line));
+    lines.push(Line::from(Span::raw("")));
+
+    // Package manager selector
+    lines.push(Line::from(vec![
+        Span::styled(" Package Manager:", Style::new().fg(theme::TEXT_DIM)),
+    ]));
+    let pm_line: Vec<Span> = SettingsForm::PKG_OPTIONS
+        .iter()
+        .enumerate()
+        .flat_map(|(i, opt)| {
+            let selected = i == sf.pkg_manager_index;
+            let focused = sf.focused == 2;
+            let style = if selected && focused {
+                Style::new().fg(theme::PRIMARY_BRIGHT).bold()
+            } else if selected {
+                Style::new().fg(theme::TEXT)
+            } else {
+                theme::dim()
+            };
+            let mut spans = vec![Span::raw("  "), Span::styled(*opt, style)];
+            if i < SettingsForm::PKG_OPTIONS.len() - 1 {
+                spans.push(Span::styled(" │", theme::dim()));
+            }
+            spans
+        })
+        .collect();
+    lines.push(Line::from(pm_line));
+    lines.push(Line::from(Span::raw("")));
+    lines.push(Line::from(Span::styled(
+        " Tab:next  Enter:save  Esc:cancel ",
+        theme::text_hint(),
+    )));
+
+    frame.render_widget(
+        Paragraph::new(Text::from(lines))
+            .wrap(Wrap { trim: true }),
+        area,
+    );
+}
+
+use crate::app::SettingsForm;

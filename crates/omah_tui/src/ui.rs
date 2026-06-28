@@ -26,17 +26,19 @@ pub fn draw(frame: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // header
-            Constraint::Length(3), // tabs
+            Constraint::Length(1), // header
+            Constraint::Length(1), // search bar
+            Constraint::Length(1), // tabs
             Constraint::Min(0),    // content
             Constraint::Length(1), // help bar
         ])
         .split(area);
 
     draw_header(frame, chunks[0], app);
-    draw_tabs(frame, chunks[1], app);
-    draw_content(frame, chunks[2], app);
-    draw_help(frame, chunks[3], app);
+    draw_search(frame, chunks[1], app);
+    draw_tabs(frame, chunks[2], app);
+    draw_content(frame, chunks[3], app);
+    draw_help(frame, chunks[4], app);
 
     // Modal overlay (drawn on top)
     if let Some(ref modal) = app.modal {
@@ -53,20 +55,52 @@ fn draw_header(frame: &mut Frame, area: Rect, app: &App) {
         .map(|c| c.vault_path.as_str())
         .unwrap_or("—");
 
-    let title_span = Span::styled(" Omah ", theme::title());
-    let tui_span = Span::styled("TUI  ", Style::new().fg(theme::PRIMARY_DIM));
-    let dot_span = Span::styled("●", Style::new().fg(theme::SUCCESS));
-    let path_span = Span::raw(format!(" vault: {vault}"));
-
-    let header = Paragraph::new(Line::from(vec![title_span, tui_span, dot_span, path_span]))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(theme::border()),
-        );
+    let header = Paragraph::new(Line::from(vec![
+        Span::styled(" Omah ", theme::title()),
+        Span::styled("TUI ", Style::new().fg(theme::PRIMARY_DIM)),
+        Span::styled(format!("│ {vault}"), theme::dim()),
+    ]))
+    .style(Style::new().bg(theme::SURFACE));
 
     frame.render_widget(header, area);
+}
+
+// ── Search bar ───────────────────────────────────────────────────────────
+
+fn draw_search(frame: &mut Frame, area: Rect, app: &App) {
+    let prefix = if app.search_focused { ">" } else { "/" };
+    let style = if app.search_focused {
+        Style::new().fg(theme::PRIMARY_BRIGHT).bg(theme::SURFACE_LIGHT)
+    } else {
+        Style::new().fg(theme::TEXT_DIM).bg(theme::SURFACE)
+    };
+
+    let line = if app.search.is_empty() && !app.search_focused {
+        Line::from(Span::styled(" Search dotfiles… (press '/')", theme::dim()))
+    } else if app.search_focused {
+        let display = &app.search;
+        let pos = app.search_cursor.min(display.len());
+        let before = &display[..pos];
+        let after = &display[pos..];
+        let cursor_ch = after.chars().next().map(|c| c.to_string()).unwrap_or_default();
+        let after_start = after.chars().next().map(|c| c.len_utf8()).unwrap_or(0);
+        Line::from(vec![
+            Span::styled(prefix, Style::new().fg(theme::PRIMARY_BRIGHT)),
+            Span::styled(before, Style::new().fg(theme::TEXT)),
+            Span::styled(
+                cursor_ch,
+                Style::new().fg(theme::PRIMARY_BRIGHT).bg(theme::SURFACE_SELECTED),
+            ),
+            Span::styled(&after[after_start..], Style::new().fg(theme::TEXT)),
+        ])
+    } else {
+        Line::from(vec![
+            Span::styled("/", theme::dim()),
+            Span::styled(app.search.clone(), Style::new().fg(theme::TEXT)),
+        ])
+    };
+
+    frame.render_widget(Paragraph::new(line).style(style), area);
 }
 
 // ── Tab bar ──────────────────────────────────────────────────────────────
@@ -76,39 +110,23 @@ fn draw_tabs(frame: &mut Frame, area: Rect, app: &App) {
         .iter()
         .map(|tab| {
             let active = *tab == app.active_tab;
-            let prefix = if active { " ● " } else { "   " };
-            let label = format!("{prefix}{}", tab.label());
             let style = if active { theme::tab_active() } else { theme::tab_inactive() };
-            Line::from(Span::styled(label, style))
+            Line::from(Span::styled(format!(" {} ", tab.label()), style))
         })
         .collect();
 
     let tabs = Tabs::new(titles)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(theme::border()),
-        )
         .highlight_style(theme::tab_active())
         .select(app.active_tab.index())
         .divider(" │ ");
-
     frame.render_widget(tabs, area);
 }
 
 // ── Content area ─────────────────────────────────────────────────────────
 
 fn draw_content(frame: &mut Frame, area: Rect, app: &App) {
-    // Refresh data on-demand for Views that need it
-    if app.active_tab == Tab::Diff && app.changes.is_empty() && app.config.is_some() {
-        // Only loads once; user presses 'd' to refresh
-    }
-
     match app.active_tab {
-        Tab::Status => screens::draw_status(frame, area, app),
-        Tab::Diff => screens::draw_diff(frame, area, app),
-        Tab::Details => screens::draw_details(frame, area, app),
+        Tab::Dots => screens::draw_dots(frame, area, app),
         Tab::Log => screens::draw_log(frame, area, app),
     }
 }
@@ -117,26 +135,28 @@ fn draw_content(frame: &mut Frame, area: Rect, app: &App) {
 
 fn draw_help(frame: &mut Frame, area: Rect, app: &App) {
     let help_text = match app.active_tab {
-        Tab::Status => " 1-4:tab  ↑↓:nav  a:add  e:edit  x:remove  b:backup  r:restore  d:diff  q:quit ",
-        Tab::Diff => " 1-4:tab  d:refresh diff  q:quit ",
-        Tab::Details => " 1-4:tab  a:select all deps  i:install  Enter:run setup  q:quit ",
-        Tab::Log => " 1-4:tab  ↑↓:scroll  q:quit ",
+        Tab::Dots => {
+            if app.detail_expanded.is_some() {
+                "Enter/Esc:close  i:install deps  s:skip setup  r:run setup"
+            } else {
+                "↑↓:nav  Enter:expand  a:add  e:edit  x:remove  b:backup  r:restore"
+            }
+        }
+        Tab::Log => "↑↓:scroll",
     };
 
-    let help = Paragraph::new(Line::from(Span::styled(help_text, theme::text_hint())))
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .border_type(BorderType::Rounded)
-                .border_style(theme::border()),
-        );
+    let help = Paragraph::new(Line::from(vec![
+        Span::styled(format!(" {help_text}"), theme::text_hint()),
+        Span::styled("  │  ?:help  1-2/Tab:switch  S:settings  q:quit", theme::dim()),
+    ]))
+    .style(Style::new().bg(theme::SURFACE));
 
     frame.render_widget(help, area);
 }
 
 // ── Modal overlay ────────────────────────────────────────────────────────
 
-fn draw_modal_overlay(frame: &mut Frame, area: Rect, modal: &ModalState, _app: &App) {
+fn draw_modal_overlay(frame: &mut Frame, area: Rect, modal: &ModalState, app: &App) {
     let modal_title: &str;
     let height_pct: u16;
     let content_fn: Box<dyn FnOnce(&mut Frame, Rect)>;
@@ -193,6 +213,17 @@ fn draw_modal_overlay(frame: &mut Frame, area: Rect, modal: &ModalState, _app: &
                 widgets::draw_confirm(f, a, "Proceed with this action?")
             });
         }
+        ModalState::Settings => {
+            modal_title = " Settings ";
+            height_pct = 50;
+            content_fn = Box::new(|f, a| screens::draw_settings(f, a, app));
+        }
+        ModalState::HelpOverlay(ctx) => {
+            modal_title = " Help ";
+            height_pct = 75;
+            let ctx = *ctx;
+            content_fn = Box::new(move |f, a| widgets::draw_help_overlay(f, a, ctx));
+        }
     }
 
     widgets::draw_modal(frame, area, modal_title, 80, height_pct, content_fn);
@@ -206,19 +237,20 @@ fn draw_form(frame: &mut Frame, area: Rect, fields: &[FormField], focused: usize
     for (_i, field) in fields.iter().enumerate() {
         match field {
             FormField::Text { .. } | FormField::Toggle { .. } => {
-                constraints.push(Constraint::Length(3));
+                constraints.push(Constraint::Length(1));
             }
             FormField::SetupSteps { items, .. } => {
-                let h = (items.len() + 1) as u16 * 3 + 3; // header + rows + add button
-                constraints.push(Constraint::Length(h.min(12)));
+                let h = (items.len() + 1) as u16 + 2; // header + rows
+                constraints.push(Constraint::Length(h.min(10)));
             }
         }
     }
 
-    // Error row
+    // Hint + error rows
     if error.is_some() {
         constraints.push(Constraint::Length(2));
     }
+    constraints.push(Constraint::Length(1)); // hint
 
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -250,12 +282,27 @@ fn draw_form(frame: &mut Frame, area: Rect, fields: &[FormField], focused: usize
         }
     }
 
+    // Error line
+    if let Some(err) = error {
+        if y < chunks.len() {
+            frame.render_widget(
+                Paragraph::new(Line::from(Span::styled(format!(" ✗ {err}"), Style::new().fg(theme::ERROR)))),
+                chunks[y],
+            );
+            y += 1;
+        }
+    }
+
     // Hint line
-    let hint = Line::from(Span::styled(
-        " Tab:next  Shift+Tab:prev  Enter:save  Esc:cancel ",
-        theme::text_hint(),
-    ));
-    frame.render_widget(Paragraph::new(Text::from(vec![hint])), inner_area);
+    if y < chunks.len() {
+        frame.render_widget(
+            Paragraph::new(Line::from(Span::styled(
+                " Tab:next  Shift+Tab:prev  Enter:save  Esc:cancel ",
+                theme::text_hint(),
+            ))),
+            chunks[y],
+        );
+    }
 }
 
 fn draw_setup_steps(frame: &mut Frame, area: Rect, items: &[crate::app::SetupFieldRow], focused: bool) {
@@ -283,16 +330,41 @@ fn draw_setup_steps(frame: &mut Frame, area: Rect, items: &[crate::app::SetupFie
         } else {
             &row.install
         };
-        let check_display = if row.check.is_empty() {
-            "—"
+        let check_display = row.check_display();
+        let check_str = if check_display.is_empty() {
+            "—".to_string()
         } else {
-            &row.check
+            check_display
         };
-        lines.push(Line::from(vec![
-            Span::styled(format!(" {}", install_display), Style::new().fg(theme::TEXT)),
-            Span::raw("  "),
-            Span::styled(check_display, theme::dim()),
-        ]));
+
+        // Show check menu if open
+        if row.show_check_menu {
+            lines.push(Line::from(Span::styled(
+                format!(" {}  [select check type…]", install_display),
+                Style::new().fg(theme::TEXT),
+            )));
+            // Append check selector options inline
+            for (i, (ct, label, _desc)) in crate::app::CHECK_TYPES.iter().enumerate() {
+                let sel = if i == row.check_menu_index { "▸" } else { " " };
+                let ct_style = if i == row.check_menu_index {
+                    Style::new().fg(theme::PRIMARY_BRIGHT).bold()
+                } else {
+                    theme::dim()
+                };
+                lines.push(Line::from(vec![
+                    Span::raw("     "),
+                    Span::styled(format!("{sel} {ct}"), ct_style),
+                    Span::raw(" "),
+                    Span::styled(*label, theme::text_hint()),
+                ]));
+            }
+        } else {
+            lines.push(Line::from(vec![
+                Span::styled(format!(" {}", install_display), Style::new().fg(theme::TEXT)),
+                Span::raw("  "),
+                Span::styled(check_str, theme::dim()),
+            ]));
+        }
     }
 
     if items.is_empty() {
