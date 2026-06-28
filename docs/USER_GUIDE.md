@@ -11,7 +11,7 @@ curl -fsSL https://raw.githubusercontent.com/brilyyy/omah/master/scripts/install
 # Build from source (requires Rust toolchain)
 curl -fsSL https://raw.githubusercontent.com/brilyyy/omah/master/scripts/install.sh | bash -s -- --source
 
-# Custom install directory (default: /usr/local/bin)
+# Custom install directory (default: ~/.local/bin)
 curl -fsSL https://raw.githubusercontent.com/brilyyy/omah/master/scripts/install.sh | bash -s -- --prefix ~/.local/bin
 ```
 
@@ -27,7 +27,7 @@ Download the latest release from [GitHub Releases](https://github.com/brilyyy/om
 
 ```sh
 tar -xzf omah-*.tar.gz
-sudo install omah /usr/local/bin/
+install omah ~/.local/bin/
 ```
 
 ### Build from source

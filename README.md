@@ -2,10 +2,12 @@
 
 ```
 
-    ╔╦╗╔═╗╦═╗╔═╗╔╦╗  ╦╔═╗╔═╗╦═╗╔╦╗
-     ║ ║╣ ╠╦╝╠═╣ ║   ║╚═╗║╣ ╠╦╝║║║
-     ╩ ╚═╝╩╚═╩ ╩ ╩   ╩╚═╝╚═╝╩╚═╩ ╩
-
+                         __  
+  ____  ____ ___  ____ _/ /_ 
+ / __ \/ __ `__ \/ __ `/ __ \
+/ /_/ / / / / / / /_/ / / / /
+\____/_/ /_/ /_/\__,_/_/ /_/ 
+                             
 ```
 
 ### *Your dotfiles' home.*
@@ -77,7 +79,7 @@ curl -fsSL https://raw.githubusercontent.com/brilyyy/omah/master/scripts/install
 
 ```sh
 # Manual install from a downloaded tarball
-tar -xzf omah-*.tar.gz && sudo install omah /usr/local/bin/
+tar -xzf omah-*.tar.gz && install omah ~/.local/bin/
 ```
 
 **Build from source:**
