@@ -79,10 +79,7 @@ pub fn check_for_upgrade() -> Option<String> {
         return None;
     }
 
-    let tag = match fetch_latest_tag() {
-        Some(t) => t,
-        None => return None,
-    };
+    let tag = fetch_latest_tag()?;
 
     write_cache(&tag);
 
