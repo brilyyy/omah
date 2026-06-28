@@ -22,8 +22,8 @@
 
 ## ✨ What can omah do?
 
-<details>
-<summary><strong>Core Features</strong></summary>
+<details open>
+<summary><strong>Features</strong></summary>
 
 - [x] **Backup & Restore** — copy dotfiles into a vault, restore them on any machine
 - [x] **Per-dotfile operations** — backup or restore a single dotfile by name
@@ -31,28 +31,11 @@
 - [x] **Diff viewer** — see what changed between your live files and the vault
 - [x] **Status dashboard** — live sync state for every configured dotfile
 - [x] **Exclude patterns** — glob-based file filtering (skip `.log`, `.git`, etc.)
-- [x] **Git integration** — auto-commit vault after backup (`git = true`)
 - [x] **Dependency checking** — verify required binaries and shell functions are available before restore
 - [x] **Setup steps** — run shell commands after restore, with smart skip checks
 - [x] **OS & package manager detection** — works on macOS and Linux, auto-detects brew/apt/pacman
 
 </details>
-
-<details open>
-<summary><strong>Desktop App</strong></summary>
-
-- [x] Beautiful dark/light theme (Batik-inspired earth tones)
-- [x] Dotfile list with live sync status badges
-- [x] Backup & restore per dotfile or all at once
-- [x] Inline diff viewer
-- [x] Add / edit dotfile dialog (name, source, symlink, deps, setup, excludes)
-- [x] Streaming terminal output for setup steps
-- [x] Tray icon & menubar mode (macOS)
-- [x] Auto-update checker
-- [x] Donation dialog
-
-</details>
-
 <details>
 <summary><strong>CLI Commands</strong></summary>
 
@@ -62,6 +45,7 @@
 - [x] `omah status` — show sync state
 - [x] `omah diff` — show what changed
 - [x] `omah list` — list configured dotfiles
+- [x] `omah info` — show detailed dotfile info with state, deps, setup
 - [x] `omah add` — add a dotfile entry
 - [x] `omah remove` — remove a dotfile entry
 
@@ -121,34 +105,19 @@ exclude = ["*.log", ".git"]
 ### Use it
 
 ```sh
-omah backup         # save your dotfiles to the vault
-omah status         # check what's synced
-omah diff           # see what changed since last backup
-omah restore        # put dotfiles back from the vault
-omah backup zsh     # backup a single dotfile
-omah -c path.toml   # use a custom config file
+omah backup              # save your dotfiles to the vault
+omah status              # check what's synced
+omah diff                # see what changed since last backup
+omah restore             # put dotfiles back from the vault
+omah backup zsh          # backup a single dotfile
+omah info zsh            # show detail for one dotfile
+omah add nvim ~/.config/nvim --symlink  # add dotfile with symlink
+omah remove nvim         # remove dotfile from config
+omah -c path.toml        # use a custom config file
 ```
 
-> **Tip:** Use `omah backup --no-exclude` to ignore exclude patterns.
-
----
-
-## 🖥️ Desktop App
-
-Download **.dmg** (macOS) or **.AppImage** (Linux) from [Releases](https://github.com/brilyyy/omah/releases).
-
-The desktop app gives you everything the CLI does, plus:
-
-- A visual dotfile dashboard with status badges
-- Inline diff viewer
-- Streaming terminal for setup steps
-- Tray icon mode — stays out of your way
-- Auto-update notifications
-
-```sh
-# Run the desktop app in dev mode
-bun run tauri dev
-```
+> **Tip:** Use `omah backup --no-exclude` to ignore exclude patterns.  
+> Use `omah add --symlink` to create a symlink from source into the vault on backup.
 
 ---
 
@@ -189,8 +158,6 @@ Each setup step can have a `check` value that determines when it's considered do
 ```sh
 git clone https://github.com/brilyyy/omah.git
 cd omah
-bun run dev          # frontend dev server
-bun run tauri dev    # desktop app dev mode
 cargo test           # run tests
 cargo clippy         # lint
 ```
@@ -204,9 +171,6 @@ crates/
 ├── omah_lib/       # Business logic (backup, restore, diff, deps)
 ├── omah_core/      # Re-exports for the desktop app
 └── omah_bin/       # CLI entry point
-
-src/                # React frontend (TanStack Router, shadcn/ui)
-src-tauri/          # Tauri v2 backend
 ```
 
 </details>

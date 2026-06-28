@@ -9,22 +9,22 @@
 - [x] Restore confirms before overwriting; continues past missing vault entries
 - [x] Backup confirms before replacing sources with symlinks
 - [x] Exclude patterns — glob-based file filtering during backup
-- [x] Git integration — auto-commit vault after backup (`git = true`), includes config file
+- [ ] Git integration — auto-commit vault after backup (`git = true`), includes config file
 - [x] Diff — compare source vs vault, show added/modified/removed
 - [x] OS and package manager config — explicit override or auto-detect
 
 ## CLI
 
-- [x] `init`, `backup`, `restore`, `status`, `list`, `diff` subcommands
+- [x] `init`, `backup`, `restore`, `status`, `list`, `info`, `diff` subcommands
 - [x] `--config` flag for custom config path
-- [x] `--no-git` / `--no-exclude` flags on `backup`
+- [x] `--no-exclude` flag on `backup`
 - [x] Error messages with context
-- [ ] `omah add <name> <source>` / `omah remove <name>` subcommands
-- [ ] `--dry-run` flag on backup/restore
-- [ ] Per-dotfile granularity: `omah backup [name]` / `omah restore [name]`
+- [x] `omah add <name> <source>` / `omah remove <name>` subcommands
+- [x] `--dry-run` flag on backup/restore
+- [x] Per-dotfile granularity: `omah backup [name]` / `omah restore [name]`
+- [x] Colored status output (green/yellow/red labels)
 - [ ] Shell completion generation (bash, zsh, fish)
 - [ ] `--quiet` / `--verbose` flags
-- [ ] Colored status output (green/yellow/red labels)
 - [ ] Error summary at end of backup/restore
 
 ## Enhancements

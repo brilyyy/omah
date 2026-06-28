@@ -10,7 +10,7 @@ expand-tilde = "0.6.1"
 owo-colors.workspace = true
 clap.workspace = true
 serde_json.workspace = true
-tabled = { version = "0.21", features = ["derive"] }
+tabled = { version = "0.21", features = ["derive", "ansi"] }
 
 [dev-dependencies]
 tempfile.workspace = true
