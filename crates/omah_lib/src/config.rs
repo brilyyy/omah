@@ -19,7 +19,12 @@ pub fn load_toml_config(path: &Path) -> Result<OmahConfig> {
 pub fn save_toml_config(config: &OmahConfig, path: &Path) -> Result<()> {
     use toml_edit::{Array, ArrayOfTables, Document, InlineTable, Item, Table, Value, value};
 
-    let mut doc = Document::new();
+    let existing = if path.is_file() {
+        fs::read_to_string(path).unwrap_or_default()
+    } else {
+        String::new()
+    };
+    let mut doc: Document = existing.parse().unwrap_or_else(|_| Document::new());
 
     doc["vault_path"] = value(config.vault_path.clone());
     if let Some(os) = &config.os {
@@ -288,5 +293,18 @@ symlink = true
         init_at(config_dir.clone()).unwrap();
         let contents = fs::read_to_string(&config_path).unwrap();
         assert!(contents.contains("/custom/vault"));
+    }
+
+    #[test]
+    fn test_save_preserves_comments() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        fs::write(&path, "# my comment\nvault_path = \"/tmp/v\"\n").unwrap();
+
+        let config = load_toml_config(&path).unwrap();
+        save_toml_config(&config, &path).unwrap();
+
+        let content = fs::read_to_string(&path).unwrap();
+        assert!(content.contains("# my comment"), "comment lost: {content}");
     }
 }
