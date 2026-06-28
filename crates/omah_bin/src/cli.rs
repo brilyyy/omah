@@ -78,5 +78,7 @@ pub enum Commands {
     },
     /// Migrate legacy vault to new ID-based structure
     Migrate,
+    /// Check for and install the latest release
+    Upgrade,
     // Tui, // disabled for now
 }

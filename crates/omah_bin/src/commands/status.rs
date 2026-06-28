@@ -146,6 +146,17 @@ pub fn run(config_path: &Path, json: bool) -> Result<()> {
         }
     }
 
+    // Check for upgrade
+    if let Some(latest) = crate::upgrade_check::check_for_upgrade() {
+        println!();
+        println!(
+            "  {}  {}  {}",
+            "↑".cyan(),
+            format!("New release {latest} available.").cyan(),
+            "Run 'omah upgrade'".cyan()
+        );
+    }
+
     Ok(())
 }
 

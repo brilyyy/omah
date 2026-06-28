@@ -1,5 +1,6 @@
 mod cli;
 mod commands;
+mod upgrade_check;
 
 use std::path::PathBuf;
 
@@ -129,6 +130,7 @@ fn main() -> anyhow::Result<()> {
         Commands::Remove { name } => commands::remove::run(&config_path, &name),
         Commands::Info { name } => commands::info::run(&config_path, name.as_deref()),
         Commands::Migrate => commands::migrate::run(&config_path),
+        Commands::Upgrade => commands::upgrade::run(),
         // Commands::Tui => commands::tui::run(&config_path), // disabled for now
     }
 }
