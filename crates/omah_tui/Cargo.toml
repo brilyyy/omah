@@ -1,0 +1,19 @@
+[package]
+name = "omah_tui"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "omah_tui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "omah-tui"
+path = "src/main.rs"
+
+[dependencies]
+omah_lib = { path = "../omah_lib" }
+anyhow.workspace = true
+ratatui = "0.29"
+crossterm = "0.28"
+nanoid = "0.4"

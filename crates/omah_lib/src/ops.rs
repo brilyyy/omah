@@ -59,6 +59,15 @@ fn always_excluded(name: &OsString) -> bool {
     ALWAYS_EXCLUDE.iter().any(|e| *e == s.as_ref())
 }
 
+/// Returns the vault directory for a dot using the `{id}_{name}` format.
+/// Falls back to `{name}` if id is None (legacy configs).
+pub fn vault_dir(vault: &Path, dot: &omah_structs::DotfileConfig) -> PathBuf {
+    match &dot.id {
+        Some(id) => vault.join(format!("{}_{}", id, dot.name)),
+        None => vault.join(&dot.name),
+    }
+}
+
 /// Returns true if the entry's filename matches any always-excluded name or glob pattern.
 fn is_excluded(path: &Path, excludes: &[String]) -> bool {
     let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
@@ -141,10 +150,68 @@ fn remove_path(path: &Path) -> Result<()> {
     Ok(())
 }
 
+// ── Progress helpers ───────────────────────────────────────────────────────
+
+/// Print a dot-level progress header, e.g. `[1/3] Zsh: `.
+/// Returns true if output was printed (TTY only).
+pub fn print_dot_header(name: &str, idx: usize, total: usize) -> bool {
+    if io::stderr().is_terminal() {
+        if total > 1 {
+            eprint!("\r  [{}/{}] {}: ", idx, total, name);
+        } else {
+            eprint!("\r  {}: ", name);
+        }
+        io::stderr().flush().ok();
+        true
+    } else {
+        false
+    }
+}
+
+/// Print progress footer for a dot (newline only if header was printed).
+pub fn print_dot_footer(had_header: bool) {
+    if had_header {
+        eprintln!();
+    }
+}
+
+// ── Migration ──────────────────────────────────────────────────────────────
+
+/// Ensures all dots have IDs. For legacy configs without IDs:
+/// 1. Generates an 8-char nanoid
+/// 2. Renames old vault directory from `{name}` to `{id}_{name}`
+/// 3. Saves the updated config
+pub fn ensure_ids(config: &mut OmahConfig, config_path: &Path) -> Result<()> {
+    let vault = expand_path(&config.vault_path)?;
+    let mut changed = false;
+
+    for dot in &mut config.dots {
+        if dot.id.is_none() {
+            let id = nanoid::nanoid!(8);
+            dot.id = Some(id);
+            changed = true;
+
+            // Rename old vault directory if it exists
+            let old_vault = vault.join(&dot.name);
+            let new_vault = vault.join(format!("{}_{}", dot.id.as_ref().unwrap(), dot.name));
+            if old_vault.exists() {
+                fs::rename(&old_vault, &new_vault)?;
+            }
+        }
+    }
+
+    if changed {
+        crate::config::save_toml_config(config, config_path)?;
+    }
+
+    Ok(())
+}
+
 // ── Public operations ──────────────────────────────────────────────────────
 
 pub fn backup(config: &OmahConfig, dry_run: bool) -> Result<()> {
     let vault = expand_path(&config.vault_path)?;
+    let total_dots = config.dots.len();
 
     if dry_run {
         println!("Backup plan:\n");
@@ -152,14 +219,16 @@ pub fn backup(config: &OmahConfig, dry_run: bool) -> Result<()> {
         fs::create_dir_all(&vault)?;
     }
 
-    for dot in &config.dots {
+    for (i, dot) in config.dots.iter().enumerate() {
         let source = expand_path(&dot.source)?;
         let filename = match source.file_name() {
             Some(f) => f.to_owned(),
             None => anyhow::bail!("'{}': source has no filename", dot.name),
         };
-        let dest = vault.join(&dot.name).join(filename);
+        let dest = vault_dir(&vault, dot).join(filename);
         let excludes = dot.exclude.as_deref().unwrap_or(&[]);
+
+        let had_header = print_dot_header(&dot.name, i + 1, total_dots);
 
         // If source is already a symlink pointing at dest, skip the copy.
         // fs::copy follows the symlink, which means it opens dest for writing
@@ -170,12 +239,14 @@ pub fn backup(config: &OmahConfig, dry_run: bool) -> Result<()> {
 
         if already_symlinked_to_dest {
             if dry_run {
+                print_dot_footer(had_header);
                 println!("  {}: up-to-date (symlink → vault)", dot.name);
             }
             continue;
         }
 
         if !source.exists() {
+            print_dot_footer(had_header);
             if dry_run {
                 println!("  {}: !!! source not found", dot.name);
                 continue;
@@ -186,25 +257,24 @@ pub fn backup(config: &OmahConfig, dry_run: bool) -> Result<()> {
         let total = count_files(&source, excludes);
 
         if dry_run {
+            print_dot_footer(had_header);
             let sym = if dot.symlink.unwrap_or(false) { " [symlink]" } else { "" };
             println!("  {}: {} → {} ({} files){}", dot.name, source.display(), dest.display(), total, sym);
             continue;
         }
 
-        let show_progress = total > 5 && io::stderr().is_terminal();
-        if show_progress {
-            eprint!("  {}: ", dot.name);
+        let show_file_progress = total > 5 && io::stderr().is_terminal();
+        if show_file_progress {
+            // print_dot_header already wrote our line, file-progress overwrites it
         }
         let counter = AtomicU64::new(0);
-        let progress = show_progress.then_some((&counter, total));
+        let progress = show_file_progress.then_some((&counter, total));
 
         copy_recursive(&source, &dest, excludes, progress).with_context(
             || format!("Failed to backup '{}' from {}", dot.name, source.display()),
         )?;
 
-        if show_progress {
-            eprintln!();
-        }
+        print_dot_footer(had_header);
 
         if dot.symlink.unwrap_or(false) {
             remove_path(&source)
@@ -220,12 +290,13 @@ pub fn backup(config: &OmahConfig, dry_run: bool) -> Result<()> {
 pub fn restore(config: &OmahConfig, dry_run: bool) -> Result<()> {
     let vault = expand_path(&config.vault_path)?;
     let mut errors: Vec<String> = Vec::new();
+    let total_dots = config.dots.len();
 
     if dry_run {
         println!("Restore plan:\n");
     }
 
-    for dot in &config.dots {
+    for (i, dot) in config.dots.iter().enumerate() {
         let source = match expand_path(&dot.source) {
             Ok(p) => p,
             Err(e) => {
@@ -250,9 +321,12 @@ pub fn restore(config: &OmahConfig, dry_run: bool) -> Result<()> {
                 continue;
             }
         };
-        let vault_entry = vault.join(&dot.name).join(&filename);
+        let vault_entry = vault_dir(&vault, dot).join(&filename);
+
+        let had_header = print_dot_header(&dot.name, i + 1, total_dots);
 
         if !vault_entry.exists() {
+            print_dot_footer(had_header);
             let msg = format!("'{}': vault entry not found at {}", dot.name, vault_entry.display());
             if dry_run {
                 println!("  {}: !!! {}", dot.name, msg);
@@ -270,6 +344,7 @@ pub fn restore(config: &OmahConfig, dry_run: bool) -> Result<()> {
             && fs::read_link(&source).map(|t| t == vault_entry).unwrap_or(false);
 
         if already_symlinked_to_dest {
+            print_dot_footer(had_header);
             if dry_run {
                 println!("  {}: up-to-date (symlink → vault)", dot.name);
             }
@@ -277,6 +352,7 @@ pub fn restore(config: &OmahConfig, dry_run: bool) -> Result<()> {
         }
 
         if dry_run {
+            print_dot_footer(had_header);
             let total = count_files(&vault_entry, &[]);
             let sym = if makes_symlink { " [symlink]" } else { "" };
             println!("  {}: {} → {} ({} files){}", dot.name, vault_entry.display(), source.display(), total, sym);
@@ -297,24 +373,17 @@ pub fn restore(config: &OmahConfig, dry_run: bool) -> Result<()> {
         } else {
             let excludes: &[String] = &[];
             let total = count_files(&vault_entry, excludes);
-            let show_progress = total > 5 && io::stderr().is_terminal();
-            if show_progress {
-                eprint!("  {}: ", dot.name);
-            }
+            let show_file_progress = total > 5 && io::stderr().is_terminal();
             let counter = AtomicU64::new(0);
-            let progress = show_progress.then_some((&counter, total));
+            let progress = show_file_progress.then_some((&counter, total));
 
-            let res = copy_recursive(&vault_entry, &source, excludes, progress)
+            copy_recursive(&vault_entry, &source, excludes, progress)
                 .with_context(|| {
                     format!("Failed to restore '{}' to {}", dot.name, source.display())
-                });
-
-            if show_progress {
-                eprintln!();
-            }
-
-            res
+                })
         };
+
+        print_dot_footer(had_header);
 
         if let Err(e) = result {
             errors.push(e.to_string());
@@ -339,7 +408,7 @@ pub fn status(config: &OmahConfig) -> Result<Vec<DotStatus>> {
             let filename = source
                 .file_name()
                 .ok_or_else(|| anyhow::anyhow!("Source has no filename: {}", source.display()))?;
-            let vault_entry = vault.join(&dot.name).join(filename);
+            let vault_entry = vault_dir(&vault, dot).join(filename);
 
             let source_exists = source.exists() || source.is_symlink();
             let backed_up = vault_entry.exists();
@@ -374,7 +443,7 @@ pub fn diff(config: &OmahConfig) -> Result<Vec<FileChange>> {
         let filename = source
             .file_name()
             .ok_or_else(|| anyhow::anyhow!("Source has no filename: {}", source.display()))?;
-        let vault_entry = vault.join(&dot.name).join(filename);
+        let vault_entry = vault_dir(&vault, dot).join(filename);
         diff_trees(
             &dot.name,
             &source,
@@ -495,6 +564,7 @@ mod tests {
         DotfileConfig {
             name: name.to_string(),
             source: source.to_string(),
+            id: None,
             symlink,
             deps: None,
             setup: None,
@@ -840,5 +910,127 @@ mod tests {
         let changes = diff(&config).unwrap();
         assert_eq!(changes.len(), 1);
         assert_eq!(changes[0].kind, ChangeKind::Modified);
+    }
+
+    // ── ensure_ids ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_ensure_ids_generates_id_and_renames_vault() {
+        let vault_dir = tempdir().unwrap();
+        let config_dir = tempdir().unwrap();
+        let config_path = config_dir.path().join("config.toml");
+
+        // Create legacy vault dir: vault/Zsh/.zshrc
+        let legacy = vault_dir.path().join("Zsh");
+        fs::create_dir_all(&legacy).unwrap();
+        fs::write(legacy.join(".zshrc"), "# legacy").unwrap();
+
+        // Write config without IDs
+        let mut config = make_config(
+            vault_dir.path().to_str().unwrap(),
+            vec![dot("Zsh", "/home/.zshrc", None)],
+        );
+        crate::config::save_toml_config(&config, &config_path).unwrap();
+
+        // Run ensure_ids
+        ensure_ids(&mut config, &config_path).unwrap();
+
+        // ID was assigned
+        assert!(config.dots[0].id.is_some());
+        let id = config.dots[0].id.as_ref().unwrap();
+
+        // Legacy vault was renamed
+        let new_vault = vault_dir.path().join(format!("{id}_Zsh"));
+        assert!(new_vault.is_dir());
+        assert!(!legacy.exists());
+        assert!(new_vault.join(".zshrc").is_file());
+
+        // Config was saved to disk with ID
+        let loaded = crate::config::load_toml_config(&config_path).unwrap();
+        assert_eq!(loaded.dots[0].id, config.dots[0].id);
+    }
+
+    #[test]
+    fn test_ensure_ids_no_vault_dir() {
+        let vault_dir = tempdir().unwrap();
+        let config_dir = tempdir().unwrap();
+        let config_path = config_dir.path().join("config.toml");
+
+        let mut config = make_config(
+            vault_dir.path().to_str().unwrap(),
+            vec![dot("Zsh", "/home/.zshrc", None)],
+        );
+        crate::config::save_toml_config(&config, &config_path).unwrap();
+
+        ensure_ids(&mut config, &config_path).unwrap();
+
+        // ID was assigned even though no vault dir existed
+        assert!(config.dots[0].id.is_some());
+    }
+
+    #[test]
+    fn test_ensure_ids_already_has_id() {
+        let vault_dir = tempdir().unwrap();
+        let config_dir = tempdir().unwrap();
+        let config_path = config_dir.path().join("config.toml");
+
+        let mut dot = DotfileConfig {
+            name: "Zsh".into(),
+            source: "/home/.zshrc".into(),
+            id: Some("abc12345".into()),
+            symlink: None,
+            deps: None,
+            setup: None,
+            exclude: None,
+        };
+        let mut config = make_config(vault_dir.path().to_str().unwrap(), vec![dot]);
+        crate::config::save_toml_config(&config, &config_path).unwrap();
+
+        ensure_ids(&mut config, &config_path).unwrap();
+
+        // ID unchanged
+        assert_eq!(config.dots[0].id.as_deref(), Some("abc12345"));
+    }
+
+    #[test]
+    fn test_ensure_ids_multiple_dots() {
+        let vault_dir = tempdir().unwrap();
+        let config_dir = tempdir().unwrap();
+        let config_path = config_dir.path().join("config.toml");
+
+        // Create two legacy vault dirs
+        let old_a = vault_dir.path().join("A");
+        fs::create_dir_all(&old_a).unwrap();
+        fs::write(old_a.join("file"), "a").unwrap();
+        let old_b = vault_dir.path().join("B");
+        fs::create_dir_all(&old_b).unwrap();
+        fs::write(old_b.join("file"), "b").unwrap();
+
+        let mut config = make_config(
+            vault_dir.path().to_str().unwrap(),
+            vec![
+                dot("A", "/a", None),
+                dot("B", "/b", None),
+            ],
+        );
+        crate::config::save_toml_config(&config, &config_path).unwrap();
+
+        ensure_ids(&mut config, &config_path).unwrap();
+
+        // Both have IDs
+        assert!(config.dots[0].id.is_some());
+        assert!(config.dots[1].id.is_some());
+
+        let id_a = config.dots[0].id.as_ref().unwrap();
+        let id_b = config.dots[1].id.as_ref().unwrap();
+
+        // Both vault dirs renamed
+        assert!(vault_dir.path().join(format!("{id_a}_A")).is_dir());
+        assert!(vault_dir.path().join(format!("{id_b}_B")).is_dir());
+        assert!(!old_a.exists());
+        assert!(!old_b.exists());
+
+        // Different IDs
+        assert_ne!(id_a, id_b);
     }
 }

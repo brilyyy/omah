@@ -1,12 +1,17 @@
 use std::io::{self, Write};
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use expand_tilde::ExpandTilde;
-use omah_lib::{config::load_toml_config, ops::backup};
+use omah_lib::{config::load_toml_config, ops::{backup, vault_dir}};
 
 pub fn run(config_path: &Path, no_exclude: bool, dry_run: bool, name: Option<&str>) -> Result<()> {
     let mut config = load_toml_config(config_path)?;
+
+    // Legacy configs must be migrated first
+    if config.dots.iter().any(|d| d.id.is_none()) {
+        bail!("Legacy config detected. Run 'omah migrate' first.");
+    }
 
     // If a name is given, narrow config to just that dotfile
     if let Some(n) = name {
@@ -44,7 +49,7 @@ pub fn run(config_path: &Path, no_exclude: bool, dry_run: bool, name: Option<&st
             let Ok(filename) = source.file_name().ok_or(()) else {
                 return true;
             };
-            let dest = vault.join(&d.name).join(filename);
+            let dest = vault_dir(&vault, d).join(filename);
             let already = source.is_symlink()
                 && std::fs::read_link(&source)
                     .map(|t| t == dest)

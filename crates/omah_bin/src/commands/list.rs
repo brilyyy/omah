@@ -9,6 +9,8 @@ use tabled::{settings::Style, Table, Tabled};
 struct ListRow {
     #[tabled(rename = "Name")]
     name: String,
+    #[tabled(rename = "ID")]
+    id: String,
     #[tabled(rename = "Source")]
     source: String,
     #[tabled(rename = "Symlink")]
@@ -31,8 +33,10 @@ fn build_list_rows(config: &omah_lib::OmahConfig) -> Vec<ListRow> {
                 Some(d) if !d.is_empty() => d.join(", "),
                 _ => "\u{2014}".to_string(),
             };
+            let id = dot.id.as_deref().unwrap_or("\u{2014}").to_string();
             ListRow {
                 name: dot.name.clone(),
+                id,
                 source: dot.source.clone(),
                 symlink,
                 deps,
@@ -71,6 +75,7 @@ mod tests {
         DotfileConfig {
             name: name.to_string(),
             source: source.to_string(),
+            id: None,
             symlink: None,
             deps: None,
             setup: None,

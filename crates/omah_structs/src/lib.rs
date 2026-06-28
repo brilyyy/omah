@@ -24,6 +24,8 @@ pub struct SetupStep {
 pub struct DotfileConfig {
     pub name: String,
     pub source: String,
+    #[serde(default)]
+    pub id: Option<String>,
     pub symlink: Option<bool>,
     pub deps: Option<Vec<String>>,
     pub setup: Option<Vec<SetupStep>>,

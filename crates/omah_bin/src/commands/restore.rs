@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::io::{self, Write};
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 use omah_lib::{
     config::load_toml_config,
     deps::{install_command, missing_deps, pending_setup_steps, resolve_pkg_manager},
@@ -40,6 +40,11 @@ fn dev_overwrite_prompt(dot: &DotfileConfig, vault_path: &str) -> Result<bool> {
 
 pub fn run(config_path: &Path, dry_run: bool, name: Option<&str>) -> Result<()> {
     let mut config = load_toml_config(config_path)?;
+
+    // Legacy configs must be migrated first
+    if config.dots.iter().any(|d| d.id.is_none()) {
+        bail!("Legacy config detected. Run 'omah migrate' first.");
+    }
 
     let is_dev = Path::new(".env").exists();
     if is_dev {

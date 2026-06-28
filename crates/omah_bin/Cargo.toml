@@ -1,12 +1,14 @@
 [package]
 name = "omah"
-version = "0.1.27"
+version = "0.2.0"
 edition = "2024"
 
 [dependencies]
 omah_lib = { path = "../omah_lib" }
+omah_tui = { path = "../omah_tui" }
 anyhow.workspace = true
 expand-tilde = "0.6.1"
+nanoid = "0.4"
 owo-colors.workspace = true
 clap.workspace = true
 serde_json.workspace = true

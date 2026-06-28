@@ -61,14 +61,19 @@ fn format_size(bytes: u64) -> String {
     }
 }
 
-fn vault_entry_for(dot_name: &str, source: &str, vault_path: &str) -> Option<std::path::PathBuf> {
+fn vault_entry_for(dot_name: &str, source: &str, vault_path: &str, id: Option<&str>) -> Option<std::path::PathBuf> {
     let vault = vault_path.expand_tilde().ok()?;
+    let dir_name = match id {
+        Some(id) => format!("{}_{}", id, dot_name),
+        None => dot_name.to_string(),
+    };
     let filename = source.rsplit('/').next().unwrap_or(source);
-    Some(vault.join(dot_name).join(filename))
+    Some(vault.join(dir_name).join(filename))
 }
 
 fn build_info_rows(s: &omah_lib::ops::DotStatus, config: &omah_lib::OmahConfig) -> Vec<InfoRow> {
-    let vault_entry = vault_entry_for(&s.name, &s.source, &config.vault_path);
+    let dot_id = config.dots.iter().find(|d| d.name == s.name).and_then(|d| d.id.as_deref());
+    let vault_entry = vault_entry_for(&s.name, &s.source, &config.vault_path, dot_id);
     let (file_count, total_bytes) = match vault_entry {
         Some(ref p) if p.exists() => vault_entry_size(p),
         _ => (0, 0),
@@ -86,7 +91,10 @@ fn build_info_rows(s: &omah_lib::ops::DotStatus, config: &omah_lib::OmahConfig) 
         "✗ missing".red().to_string()
     };
 
-    let vault_display = format!("{}/{}", config.vault_path, s.name);
+    let vault_display = match dot_id {
+        Some(id) => format!("{}/{}_{}", config.vault_path, id, s.name),
+        None => format!("{}/{}", config.vault_path, s.name),
+    };
 
     let mut rows = vec![
         InfoRow { field: "source".into(), value: s.source.clone() },
@@ -280,7 +288,13 @@ mod tests {
 
     #[test]
     fn test_vault_entry_for() {
-        let path = vault_entry_for("Zsh", "/home/.zshrc", "/vault");
+        let path = vault_entry_for("Zsh", "/home/.zshrc", "/vault", Some("abc123"));
+        assert_eq!(path, Some(std::path::PathBuf::from("/vault/abc123_Zsh/.zshrc")));
+    }
+
+    #[test]
+    fn test_vault_entry_for_no_id() {
+        let path = vault_entry_for("Zsh", "/home/.zshrc", "/vault", None);
         assert_eq!(path, Some(std::path::PathBuf::from("/vault/Zsh/.zshrc")));
     }
 }

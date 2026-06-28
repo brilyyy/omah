@@ -1,3 +1,4 @@
+use std::io::{self, IsTerminal, Write};
 use std::path::Path;
 
 use anyhow::Result;
@@ -66,6 +67,17 @@ fn build_status_rows(statuses: &[omah_lib::ops::DotStatus]) -> Vec<StatusRow> {
 
 pub fn run(config_path: &Path, json: bool) -> Result<()> {
     let config = load_toml_config(config_path)?;
+
+    // Show spinner for each dot (TTY only)
+    if io::stderr().is_terminal() {
+        for dot in &config.dots {
+            eprint!("\r  Checking {}... ", dot.name);
+            io::stderr().flush().ok();
+        }
+        eprint!("\r");
+        io::stderr().flush().ok();
+    }
+
     let statuses = status(&config)?;
 
     if json {

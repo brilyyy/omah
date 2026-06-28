@@ -178,6 +178,7 @@ mod tests {
         DotfileConfig {
             name: "test".into(),
             source: "/dev/null".into(),
+            id: None,
             symlink: None,
             deps: deps.map(|d| d.into_iter().map(String::from).collect()),
             setup: None,
@@ -560,6 +561,7 @@ mod tests {
         let dot = DotfileConfig {
             name: "test".into(),
             source: "/dev/null".into(),
+            id: None,
             symlink: None,
             deps: None,
             setup: Some(vec![
@@ -580,6 +582,7 @@ mod tests {
         let dot = DotfileConfig {
             name: "test".into(),
             source: "/dev/null".into(),
+            id: None,
             symlink: None,
             deps: None,
             setup: Some(vec![

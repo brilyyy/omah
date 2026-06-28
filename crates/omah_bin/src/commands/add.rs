@@ -13,9 +13,11 @@ pub fn run(config_path: &Path, name: String, source: String, symlink: bool) -> R
         bail!("Dotfile '{}' already exists in config", name);
     }
 
+    let id = nanoid::nanoid!(8);
     config.dots.push(DotfileConfig {
         name: name.clone(),
         source,
+        id: Some(id),
         symlink: if symlink { Some(true) } else { None },
         deps: None,
         setup: None,

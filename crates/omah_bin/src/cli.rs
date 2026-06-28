@@ -76,4 +76,8 @@ pub enum Commands {
         /// Dotfile name (omit to show all)
         name: Option<String>,
     },
+    /// Migrate legacy vault to new ID-based structure
+    Migrate,
+    /// Launch the terminal user interface (interactive mode)
+    Tui,
 }

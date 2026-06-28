@@ -37,6 +37,9 @@ pub fn save_toml_config(config: &OmahConfig, path: &Path) -> Result<()> {
         let mut tbl = Table::new();
         tbl["name"] = value(dot.name.clone());
         tbl["source"] = value(dot.source.clone());
+        if let Some(id) = &dot.id {
+            tbl["id"] = value(id.clone());
+        }
         if let Some(symlink) = dot.symlink {
             tbl["symlink"] = value(symlink);
         }
@@ -240,6 +243,7 @@ symlink = true
             dots: vec![DotfileConfig {
                 name: "Neovim".into(),
                 source: "~/.config/nvim".into(),
+                id: None,
                 symlink: None,
                 deps: Some(vec!["nvim".into()]),
                 setup: Some(vec![SetupStep {
