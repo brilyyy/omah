@@ -57,20 +57,23 @@
 
 ### Install
 
+**Install script** (macOS / Linux):
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/brilyyy/omah/master/scripts/install.sh | bash
+```
+
 **Prebuilt binaries** — grab the latest from [Releases](https://github.com/brilyyy/omah/releases):
 
 | Platform | File |
 |----------|------|
-| macOS (Apple Silicon) | `omah-v*-macos-aarch64.tar.gz` · `omah_*.aarch64.dmg` |
-| macOS (Intel) | `omah-v*-macos-x86_64.tar.gz` · `omah_*.x64.dmg` |
-| Linux (x86_64) | `omah-v*-linux-x86_64.tar.gz` · `omah_*.AppImage` |
+| macOS (Apple Silicon) | `omah-v*-macos-aarch64.tar.gz` |
+| macOS (Intel) | `omah-v*-macos-x86_64.tar.gz` |
+| Linux (x86_64) | `omah-v*-linux-x86_64.tar.gz` |
 
 ```sh
-# Quick install (macOS / Linux)
-curl -fsSL https://raw.githubusercontent.com/brilyyy/omah/master/install.sh | bash
-
-# Or manually
-chmod +x omah-* && mv omah-* /usr/local/bin/omah
+# Manual install from a downloaded tarball
+tar -xzf omah-*.tar.gz && sudo install omah /usr/local/bin/
 ```
 
 **Build from source:**
@@ -82,7 +85,7 @@ cargo install --path crates/omah_bin
 ### Set it up
 
 ```sh
-omah init          # creates ~/.config/omah/omah-config.toml
+omah init          # creates ~/.config/omah/omah.toml
 ```
 
 Edit the config to add your dotfiles:
@@ -123,7 +126,7 @@ omah -c path.toml        # use a custom config file
 
 ## 📖 Config
 
-Default location: `~/.config/omah/omah-config.toml`
+Default location: `~/.config/omah/omah.toml`
 
 | Field | What it does |
 |-------|-------------|
