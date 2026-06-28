@@ -5,7 +5,7 @@ REPO="brilyyy/omah"
 BIN="omah"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 
-# ── Parse flags ─────────────────────────────────────────────────────────
+# -- Parse flags ---------------------------------------------------------
 BUILD_SOURCE=false
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -17,24 +17,24 @@ while [ $# -gt 0 ]; do
 done
 
 if [ "$BUILD_SOURCE" = true ]; then
-  # ── Build from source ────────────────────────────────────────────────
-  echo "→ Cloning $REPO…"
+  # -- Build from source --------------------------------------------------
+  echo "> Cloning ${REPO}..."
   TMP="$(mktemp -d)"
-  git clone --depth 1 "https://github.com/$REPO.git" "$TMP"
+  git clone --depth 1 "https://github.com/${REPO}.git" "${TMP}"
 
-  echo "→ Building…"
-  (cd "$TMP" && cargo build --release --bin omah)
+  echo "> Building..."
+  (cd "${TMP}" && cargo build --release --bin omah)
 
-  echo "→ Installing $BIN to $INSTALL_DIR…"
-  install -d "$INSTALL_DIR"
-  install -m 755 "$TMP/target/release/$BIN" "$INSTALL_DIR/$BIN"
+  echo "> Installing ${BIN} to ${INSTALL_DIR}..."
+  install -d "${INSTALL_DIR}"
+  install -m 755 "${TMP}/target/release/${BIN}" "${INSTALL_DIR}/${BIN}"
 
-  rm -rf "$TMP"
-  echo "✓ $BIN installed at $INSTALL_DIR/$BIN (built from source)"
+  rm -rf "${TMP}"
+  echo "* ${BIN} installed at ${INSTALL_DIR}/${BIN} (built from source)"
   exit 0
 fi
 
-# ── Platform detection ──────────────────────────────────────────────────
+# -- Platform detection ---------------------------------------------------
 ARCH=""
 case "$(uname -s)-$(uname -m)" in
   Darwin-arm64)  ARCH="macos-aarch64"  ;;
@@ -46,34 +46,34 @@ case "$(uname -s)-$(uname -m)" in
     ;;
 esac
 
-# ── Fetch latest release tag ────────────────────────────────────────────
-echo "→ Detecting latest release…"
-TAG="$(curl -fsSL "https://api.github.com/repos/$REPO/releases/latest" \
+# -- Fetch latest release tag ---------------------------------------------
+echo "> Detecting latest release..."
+TAG="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
   | grep '"tag_name":' | sed 's/.*"tag_name": "//;s/".*//')"
 
-if [ -z "$TAG" ]; then
-  echo "✗ Failed to detect latest release tag"
+if [ -z "${TAG}" ]; then
+  echo "x Failed to detect latest release tag"
   exit 1
 fi
-echo "  Latest: $TAG"
+echo "  Latest: ${TAG}"
 
-# ── Download & extract ─────────────────────────────────────────────────
+# -- Download & extract ---------------------------------------------------
 TARBALL="${BIN}-${TAG#v}-${ARCH}.tar.gz"
-URL="https://github.com/$REPO/releases/download/$TAG/$TARBALL"
+URL="https://github.com/${REPO}/releases/download/${TAG}/${TARBALL}"
 TMP="$(mktemp -d)"
 
-echo "→ Downloading $TARBALL…"
-curl -fsSL "$URL" -o "$TMP/$TARBALL"
+echo "> Downloading ${TARBALL}..."
+curl -fsSL "${URL}" -o "${TMP}/${TARBALL}"
 
-echo "→ Extracting…"
-tar -xzf "$TMP/$TARBALL" -C "$TMP"
+echo "> Extracting..."
+tar -xzf "${TMP}/${TARBALL}" -C "${TMP}"
 
-# ── Install ────────────────────────────────────────────────────────────
-echo "→ Installing $BIN to $INSTALL_DIR…"
-install -d "$INSTALL_DIR"
-install -m 755 "$TMP/$BIN" "$INSTALL_DIR/$BIN"
+# -- Install --------------------------------------------------------------
+echo "> Installing ${BIN} to ${INSTALL_DIR}..."
+install -d "${INSTALL_DIR}"
+install -m 755 "${TMP}/${BIN}" "${INSTALL_DIR}/${BIN}"
 
-# ── Cleanup ────────────────────────────────────────────────────────────
-rm -rf "$TMP"
+# -- Cleanup --------------------------------------------------------------
+rm -rf "${TMP}"
 
-echo "✓ $BIN $TAG installed at $INSTALL_DIR/$BIN"
+echo "* ${BIN} ${TAG} installed at ${INSTALL_DIR}/${BIN}"
