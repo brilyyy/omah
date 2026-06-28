@@ -1,8 +1,0 @@
-[package]
-name = "omah_core"
-version = "1.2.0"
-edition = "2024"
-
-[dependencies]
-omah_structs = { path = "../omah_structs" }
-omah_lib = { path = "../omah_lib" }

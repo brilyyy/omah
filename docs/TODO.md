@@ -27,29 +27,11 @@
 - [ ] Colored status output (green/yellow/red labels)
 - [ ] Error summary at end of backup/restore
 
-## Desktop app (Tauri)
-
-- [x] v1.0.0 — full visual interface with streaming terminal, batik theme
-- [x] Dotfile list with live sync status
-- [x] Backup / restore per dotfile or all at once
-- [x] Inline diff viewer
-- [x] Add / edit dotfile (name, source, symlink, deps, setup steps, exclude patterns)
-- [x] Setup step runner with streaming terminal output
-- [x] Donation dialog
-- [ ] Auto-update — notify and apply new releases in-app
-- [ ] Tray icon / menubar mode (macOS)
-- [ ] Vault browser — explore backed-up files and their history
-- [ ] Onboarding wizard — guided first-run setup for new users
-- [ ] Drag-and-drop to add dotfiles from Finder / file manager
-- [ ] Stale backup notifications
-
 ## Enhancements
 
 - [ ] Multiple profiles — named profiles pointing to different vault paths (e.g. work vs personal)
 - [ ] `omah watch` — monitor source paths and auto-backup on change
 - [ ] Encryption — optionally encrypt sensitive dotfiles at rest in the vault
-- [ ] Remote vault — push/pull vault to a Git remote, S3 bucket, or rsync target
 - [ ] `omah import` — bootstrap config from an existing dotfile repository
 - [ ] Config validation — catch invalid paths, missing binaries, and malformed globs before operations run
-- [ ] Windows support — native path handling and package manager detection (`winget`, `scoop`, `choco`)
 - [ ] Colored diff output in CLI

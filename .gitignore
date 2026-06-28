@@ -6,7 +6,7 @@ plan.md
 .tanstack/
 .claude/
 .rtk/
-graphify-out/
 .agents/
 
 skills-lock.json
+dev/
